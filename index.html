@@ -284,7 +284,7 @@ function vToday() {
     ${weekend ? '<p>周末不用复习卡盒，亲子共读绘本就好。</p>' : `<div class="row">${chips}</div>`}
     ${weekend ? '' : due.length
       ? `<button class="btn primary wide" data-act="review">开始复习（${due.length} 张）</button>`
-      : `<p>今天该复习的都复习完了 ✓ ${day.r ? `读了 ${day.r} 张，读对 ${day.ok} 张。` : ''}</p>`}
+      : Object.keys(state.cards).length ? `<p>今天该复习的都复习完了 ✓ ${day.r ? `读了 ${day.r} 张，读对 ${day.ok} 张。` : ''}</p>` : '<p class="small">卡盒还是空的，先在下面「卡盒现在」里开始。</p>'}
   </section>
   <section class="panel">
     <h2>放学后 · 学新卡（夹心法）</h2>
