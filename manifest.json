@@ -1,0 +1,27 @@
+{
+  "name": "Luca 的卡盒",
+  "short_name": "Luca 卡盒",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#edf2f6",
+  "theme_color": "#2563c9",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

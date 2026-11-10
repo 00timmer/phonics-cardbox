@@ -1,0 +1,635 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Luca 的卡盒</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#2563c9">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Luca 卡盒">
+<script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column for the parent (today / boxes / timer / help) + a full-screen card stage for Luca.
+   Box colours follow LEGO brick colours, 1 = red … 5 = blue, mastered = purple. */
+:root {
+  --bg: #edf2f6; --surface: #ffffff; --sunk: #e3eaf0; --ink: #1c2833; --muted: #5a6876; --line: #d3dce4;
+  --accent: #2563c9; --accent-ink: #ffffff; --good: #1f8f5a; --bad: #c2413b;
+  --b1: #d7383e; --b2: #e9822a; --b3: #d9a900; --b4: #2a9a62; --b5: #2563c9; --bm: #7651cf; --bq: #8794a1;
+  --card: Andika, "Comic Sans MS", "Chalkboard SE", system-ui, sans-serif;
+  --ui: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11181f; --surface: #1a232d; --sunk: #222d38; --ink: #e7edf3; --muted: #9ba9b6; --line: #2c3946;
+  --accent: #5b92ec; --accent-ink: #0d1520; --good: #3fbf82; --bad: #ec6b65;
+  --b1: #ec5a5f; --b2: #f39b4c; --b3: #e8c22e; --b4: #3fbf82; --b5: #5b92ec; --bm: #9b7cf0; --bq: #7e8b98; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11181f; --surface: #1a232d; --sunk: #222d38; --ink: #e7edf3; --muted: #9ba9b6; --line: #2c3946;
+  --accent: #5b92ec; --accent-ink: #0d1520; --good: #3fbf82; --bad: #ec6b65;
+  --b1: #ec5a5f; --b2: #f39b4c; --b3: #e8c22e; --b4: #3fbf82; --b5: #5b92ec; --bm: #9b7cf0; --bq: #7e8b98; color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html, body { height: 100% }
+body { background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+input, select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 18px 110px; display: flex; flex-direction: column; gap: 18px; }
+.eyebrow { font-size: 13px; color: var(--muted); letter-spacing: .04em; }
+h1 { font-size: 28px; margin: 2px 0 0; text-wrap: balance; }
+h2 { font-size: 17px; margin: 0; }
+p { margin: 0; }
+.small { font-size: 13px; color: var(--muted); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 520px) { .grid2 { grid-template-columns: 1fr; } }
+.kv { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--sunk); border-radius: 12px; min-width: 0; }
+.kv b { font-size: 18px; font-family: var(--card); }
+.btn { padding: 14px 18px; border-radius: 14px; font-weight: 700; font-size: 17px; background: var(--sunk); text-align: center; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.good { background: var(--good); color: #fff; }
+.btn.bad { background: var(--bad); color: #fff; }
+.btn.ghost { background: transparent; border: 1px solid var(--line); font-weight: 500; }
+.btn.wide { width: 100%; }
+.btn[disabled] { opacity: .4; cursor: not-allowed; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 500; background: var(--sunk); }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.warn { background: color-mix(in srgb, var(--b2) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--b2) 50%, var(--line)); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.note { font-size: 13px; color: var(--muted); text-align: center; }
+/* box tabs */
+.boxes { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+@media (max-width: 560px) { .boxes { grid-template-columns: repeat(4, 1fr); } }
+.boxtab { border-radius: 12px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 0; background: var(--sunk); border: 2px solid transparent; }
+.boxtab .n { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.boxtab .l { font-size: 12px; color: var(--muted); }
+.boxtab.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 14%, var(--surface)); }
+.boxtab .bar { width: 26px; height: 6px; border-radius: 3px; background: var(--c); }
+.cards { display: flex; flex-wrap: wrap; gap: 8px; }
+.wc { font-family: var(--card); font-size: 20px; padding: 6px 14px; border-radius: 10px; background: var(--sunk); border-left: 5px solid var(--c, var(--bq)); }
+/* tab bar */
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); display: flex; justify-content: center;
+  padding: 6px max(16px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 5; }
+.tabs .in { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; max-width: 760px; }
+.tabs button { padding: 8px 4px; border-radius: 10px; font-size: 14px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.tabs button .ic { font-size: 20px; line-height: 1; }
+.tabs button.on { color: var(--accent); font-weight: 700; }
+/* stage (full screen session for Luca) */
+.stage { position: fixed; inset: 0; background: var(--bg); z-index: 20; display: flex; flex-direction: column;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); gap: 12px; }
+.stage .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; max-width: 900px; width: 100%; margin: 0 auto; }
+.prog { flex: 1; height: 8px; border-radius: 4px; background: var(--sunk); overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--accent); transition: width .25s; }
+.big { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 0; text-align: center; }
+.flash { font-family: var(--card); font-size: clamp(88px, 22vw, 200px); line-height: 1.05; background: var(--surface); border-radius: 28px; padding: .18em .5em; border: 1px solid var(--line);
+  box-shadow: 0 8px 0 var(--c, var(--line)); min-width: 3.2em; }
+.flash.sm { font-size: clamp(56px, 13vw, 120px); }
+.hint { font-size: 18px; color: var(--muted); max-width: 34em; }
+.hint b { color: var(--ink); }
+.stage .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 900px; width: 100%; margin: 0 auto; }
+.stage .acts.one { grid-template-columns: 1fr; }
+.stage .acts .btn { padding: 22px 12px; font-size: 20px; }
+.parent { font-size: 14px; color: var(--muted); text-align: center; }
+.tag { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.checks { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 560px; }
+.check { display: flex; gap: 12px; align-items: center; text-align: left; padding: 14px 16px; border-radius: 14px; background: var(--surface); border: 2px solid var(--line); font-size: 17px; }
+.check .bx { width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--muted); flex: none; display: grid; place-items: center; font-weight: 700; }
+.check.on { border-color: var(--good); }
+.check.on .bx { background: var(--good); border-color: var(--good); color: #fff; }
+.steps { display: flex; gap: 6px; justify-content: center; }
+.steps span { width: 34px; height: 6px; border-radius: 3px; background: var(--sunk); }
+.steps span.on { background: var(--accent); }
+.pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick button { font-family: var(--card); font-size: 22px; padding: 6px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.timer { font-family: var(--card); font-size: clamp(64px, 18vw, 120px); font-variant-numeric: tabular-nums; text-align: center; line-height: 1; padding-block: 8px; }
+table.rec { width: 100%; border-collapse: collapse; font-size: 15px; font-variant-numeric: tabular-nums; }
+table.rec td, table.rec th { padding: 7px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+table.rec th { font-weight: 500; color: var(--muted); font-size: 13px; }
+.sheet { position: fixed; inset: 0; z-index: 30; background: color-mix(in srgb, var(--ink) 40%, transparent); display: flex; align-items: flex-end; justify-content: center; }
+.sheet .in { background: var(--surface); width: 100%; max-width: 620px; border-radius: 20px 20px 0 0; padding: 18px max(16px, env(safe-area-inset-left, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; max-height: 92%; overflow: auto; }
+.movers { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.movers button { padding: 10px 0; border-radius: 10px; font-weight: 700; background: var(--sunk); border-bottom: 4px solid var(--c); }
+.movers button.on { background: var(--c); color: #fff; }
+.help li { margin-bottom: 6px; }
+.help ol, .help ul { margin: 0; padding-left: 1.3em; }
+.sync { font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+@keyframes pop { from { transform: scale(.92); } to { transform: scale(1); } }
+.flash { animation: pop .18s ease-out; }
+</style>
+
+<div class="wrap" id="app"></div>
+<nav class="tabs"><div class="in" id="tabs"></div></nav>
+<div id="stage" hidden class="stage"></div>
+<div id="sheet" hidden class="sheet"></div>
+
+<script type="application/json" id="data">{"letters": [{"l": "Aa", "e": "🍎", "k": "apple", "s": "/ă/"}, {"l": "Bb", "e": "🏏", "k": "bat", "s": "/b/"}, {"l": "Cc", "e": "🐱", "k": "cat", "s": "/k/"}, {"l": "Dd", "e": "🐶", "k": "dog", "s": "/d/"}, {"l": "Ee", "e": "👦", "k": "Ed", "s": "/ĕ/"}, {"l": "Ff", "e": "🎉", "k": "fun", "s": "/f/"}, {"l": "Gg", "e": "🎲", "k": "game", "s": "/g/"}, {"l": "Hh", "e": "🎩", "k": "hat", "s": "/h/"}, {"l": "Ii", "e": "🦟", "k": "itch", "s": "/ĭ/"}, {"l": "Jj", "e": "🫙", "k": "jug", "s": "/j/"}, {"l": "Kk", "e": "🪁", "k": "kite", "s": "/k/"}, {"l": "Ll", "e": "💡", "k": "lamp", "s": "/l/"}, {"l": "Mm", "e": "👨", "k": "man", "s": "/m/"}, {"l": "Nn", "e": "🥜", "k": "nut", "s": "/n/"}, {"l": "Oo", "e": "🐙", "k": "octopus", "s": "/ŏ/"}, {"l": "Pp", "e": "🍳", "k": "pan", "s": "/p/"}, {"l": "Qu qu", "e": "👸", "k": "queen", "s": "/kw/"}, {"l": "Rr", "e": "🐀", "k": "rat", "s": "/r/"}, {"l": "Ss", "e": "🐍", "k": "snake", "s": "/s/"}, {"l": "Tt", "e": "🔝", "k": "top", "s": "/t/"}, {"l": "Uu", "e": "⬆️", "k": "up", "s": "/ŭ/"}, {"l": "Vv", "e": "🚐", "k": "van", "s": "/v/"}, {"l": "Ww", "e": "🌬️", "k": "wind", "s": "/w/"}, {"l": "Xx", "e": "🦊", "k": "fox", "s": "/ks/"}, {"l": "Yy", "e": "🟡", "k": "yellow", "s": "/y/"}, {"l": "Zz", "e": "🦓", "k": "zebra", "s": "/z/"}, {"l": "wh", "e": "🎶", "k": "whistle", "s": "/w/"}, {"l": "ch", "e": "🧔", "k": "chin", "s": "/ch/"}, {"l": "sh", "e": "🚢", "k": "ship", "s": "/sh/"}, {"l": "th", "e": "👍", "k": "thumb", "s": "/th/"}, {"l": "ck", "e": "🧦", "k": "sock", "s": "/k/"}, {"l": "ng", "e": "💍", "k": "ring", "s": "/ng/"}, {"l": "nk", "e": "🦨", "k": "skunk", "s": "/nk/"}], "school": [{"w": "my", "b": 1, "m": "❤"}, {"w": "am", "b": 1, "m": "拼"}, {"w": "it", "b": 1, "m": "拼"}, {"w": "in", "b": 1, "m": "拼"}, {"w": "you", "b": 2, "m": "❤"}, {"w": "at", "b": 2, "m": "拼"}, {"w": "I", "b": 3, "m": ""}, {"w": "the", "b": 3, "m": "❤"}, {"w": "and", "b": 3, "m": "拼"}, {"w": "to", "b": 3, "m": "❤"}, {"w": "on", "b": 3, "m": "拼"}, {"w": "we", "b": 3, "m": ""}, {"w": "for", "b": 3, "m": ""}, {"w": "like", "b": 3, "m": ""}, {"w": "me", "b": 3, "m": ""}, {"w": "is", "b": 3, "m": ""}, {"w": "go", "b": 3, "m": ""}, {"w": "of", "b": 3, "m": "❤"}, {"w": "no", "b": 3, "m": ""}, {"w": "will", "b": 3, "m": ""}, {"w": "get", "b": 3, "m": "拼"}], "pp": ["a", "and", "away", "big", "blue", "can", "come", "down", "find", "for", "funny", "go", "help", "here", "I", "in", "is", "it", "jump", "little", "look", "make", "me", "my", "not", "one", "play", "red", "run", "said", "see", "the", "three", "to", "two", "up", "we", "where", "yellow", "you"], "p": ["all", "am", "are", "at", "ate", "be", "black", "brown", "but", "came", "did", "do", "eat", "four", "get", "good", "have", "he", "into", "like", "must", "new", "no", "now", "on", "our", "out", "please", "pretty", "ran", "ride", "saw", "say", "she", "so", "soon", "that", "there", "they", "this", "too", "under", "want", "was", "well", "went", "what", "white", "who", "will", "with", "yes"], "g1": ["after", "again", "an", "any", "as", "ask", "by", "could", "every", "fly", "from", "give", "going", "had", "has", "her", "him", "his", "how", "just", "know", "let", "live", "may", "of", "old", "once", "open", "over", "put", "round", "some", "stop", "take", "thank", "them", "then", "think", "walk", "were", "when"], "words": [{"w": "cat", "e": "🐱", "st": 1, "fam": "-at", "sent": "The cat sat on a mat."}, {"w": "sat", "e": "🪑", "st": 1, "fam": "-at", "sent": "The cat sat on a mat."}, {"w": "mat", "e": "🧘", "st": 1, "fam": "-at", "sent": "The cat sat on a mat."}, {"w": "rat", "e": "🐀", "st": 1, "fam": "-at", "sent": "The cat sat on a mat."}, {"w": "fat", "e": "🐷", "st": 1, "fam": "-at", "sent": "The cat sat on a mat."}, {"w": "am", "e": "🙋", "st": 1, "fam": "-am", "sent": "I am Sam."}, {"w": "Sam", "e": "👦", "st": 1, "fam": "-am", "sent": "I am Sam."}, {"w": "ram", "e": "🐏", "st": 1, "fam": "-am", "sent": "I am Sam."}, {"w": "dam", "e": "🦫", "st": 1, "fam": "-am", "sent": "I am Sam."}, {"w": "sad", "e": "😢", "st": 1, "fam": "-ad", "sent": "Dad is not sad."}, {"w": "mad", "e": "😠", "st": 1, "fam": "-ad", "sent": "Dad is not sad."}, {"w": "dad", "e": "👨", "st": 1, "fam": "-ad", "sent": "Dad is not sad."}, {"w": "fad", "e": "✨", "st": 1, "fam": "-ad", "sent": "Dad is not sad."}, {"w": "sit", "e": "🪑", "st": 1, "fam": "-it", "sent": "Sit on it."}, {"w": "fit", "e": "👕", "st": 1, "fam": "-it", "sent": "Sit on it."}, {"w": "it", "e": "👉", "st": 1, "fam": "-it", "sent": "Sit on it."}, {"w": "did", "e": "✅", "st": 1, "fam": "-id", "sent": "I did it."}, {"w": "rid", "e": "🧹", "st": 1, "fam": "-id", "sent": "I did it."}, {"w": "mid", "e": "⏸️", "st": 1, "fam": "-id", "sent": "I did it."}, {"w": "cot", "e": "🛏️", "st": 1, "fam": "-ot", "sent": "It is not a cot."}, {"w": "dot", "e": "🔴", "st": 1, "fam": "-ot", "sent": "It is not a cot."}, {"w": "rot", "e": "🍂", "st": 1, "fam": "-ot", "sent": "It is not a cot."}, {"w": "not", "e": "🚫", "st": 1, "fam": "-ot", "sent": "It is not a cot."}, {"w": "tin", "e": "🥫", "st": 1, "fam": "-in", "sent": "A fin is in it."}, {"w": "fin", "e": "🦈", "st": 1, "fam": "-in", "sent": "A fin is in it."}, {"w": "sin", "e": "😈", "st": 1, "fam": "-in", "sent": "A fin is in it."}, {"w": "in", "e": "📥", "st": 1, "fam": "-in", "sent": "A fin is in it."}, {"w": "can", "e": "🥫", "st": 1, "fam": "-an", "sent": "The man ran."}, {"w": "fan", "e": "🪭", "st": 1, "fam": "-an", "sent": "The man ran."}, {"w": "man", "e": "👨", "st": 1, "fam": "-an", "sent": "The man ran."}, {"w": "ran", "e": "🏃", "st": 1, "fam": "-an", "sent": "The man ran."}, {"w": "tan", "e": "🟫", "st": 1, "fam": "-an", "sent": "The man ran."}, {"w": "bug", "e": "🐛", "st": 1, "fam": "-ug", "sent": "A bug is in a mug."}, {"w": "mug", "e": "☕", "st": 1, "fam": "-ug", "sent": "A bug is in a mug."}, {"w": "hug", "e": "🤗", "st": 1, "fam": "-ug", "sent": "A bug is in a mug."}, {"w": "jug", "e": "🫙", "st": 1, "fam": "-ug", "sent": "A bug is in a mug."}, {"w": "tug", "e": "🪢", "st": 1, "fam": "-ug", "sent": "A bug is in a mug."}, {"w": "sun", "e": "☀️", "st": 1, "fam": "-un", "sent": "Run in the sun."}, {"w": "run", "e": "🏃", "st": 1, "fam": "-un", "sent": "Run in the sun."}, {"w": "bun", "e": "🍔", "st": 1, "fam": "-un", "sent": "Run in the sun."}, {"w": "fun", "e": "🎉", "st": 1, "fam": "-un", "sent": "Run in the sun."}, {"w": "cut", "e": "✂️", "st": 1, "fam": "-ut", "sent": "Cut the nut."}, {"w": "hut", "e": "🛖", "st": 1, "fam": "-ut", "sent": "Cut the nut."}, {"w": "nut", "e": "🥜", "st": 1, "fam": "-ut", "sent": "Cut the nut."}, {"w": "bag", "e": "👜", "st": 1, "fam": "-ag", "sent": "The dog can wag."}, {"w": "tag", "e": "🏷️", "st": 1, "fam": "-ag", "sent": "The dog can wag."}, {"w": "wag", "e": "🐕", "st": 1, "fam": "-ag", "sent": "The dog can wag."}, {"w": "rag", "e": "🧽", "st": 1, "fam": "-ag", "sent": "The dog can wag."}, {"w": "pig", "e": "🐷", "st": 1, "fam": "-ig", "sent": "The big pig can dig."}, {"w": "dig", "e": "⛏️", "st": 1, "fam": "-ig", "sent": "The big pig can dig."}, {"w": "big", "e": "🐘", "st": 1, "fam": "-ig", "sent": "The big pig can dig."}, {"w": "wig", "e": "💇", "st": 1, "fam": "-ig", "sent": "The big pig can dig."}, {"w": "fig", "e": "🫐", "st": 1, "fam": "-ig", "sent": "The big pig can dig."}, {"w": "dog", "e": "🐶", "st": 2, "fam": "-og", "sent": "The dog can jog."}, {"w": "log", "e": "🪵", "st": 2, "fam": "-og", "sent": "The dog can jog."}, {"w": "jog", "e": "🏃", "st": 2, "fam": "-og", "sent": "The dog can jog."}, {"w": "fog", "e": "🌫️", "st": 2, "fam": "-og", "sent": "The dog can jog."}, {"w": "hog", "e": "🐗", "st": 2, "fam": "-og", "sent": "The dog can jog."}, {"w": "ship", "e": "🚢", "st": 2, "fam": "sh", "sent": "The fish is in a dish."}, {"w": "fish", "e": "🐟", "st": 2, "fam": "sh", "sent": "The fish is in a dish."}, {"w": "shop", "e": "🏪", "st": 2, "fam": "sh", "sent": "The fish is in a dish."}, {"w": "dish", "e": "🍽️", "st": 2, "fam": "sh", "sent": "The fish is in a dish."}, {"w": "shell", "e": "🐚", "st": 2, "fam": "sh", "sent": "The fish is in a dish."}, {"w": "duck", "e": "🦆", "st": 2, "fam": "ck", "sent": "The duck has a sock."}, {"w": "sock", "e": "🧦", "st": 2, "fam": "ck", "sent": "The duck has a sock."}, {"w": "rock", "e": "🪨", "st": 2, "fam": "ck", "sent": "The duck has a sock."}, {"w": "lock", "e": "🔒", "st": 2, "fam": "ck", "sent": "The duck has a sock."}, {"w": "sick", "e": "🤒", "st": 2, "fam": "ck", "sent": "The duck has a sock."}, {"w": "kick", "e": "⚽", "st": 2, "fam": "ck", "sent": "The duck has a sock."}, {"w": "mop", "e": "🧹", "st": 2, "fam": "-op", "sent": "I can hop on top."}, {"w": "hop", "e": "🐇", "st": 2, "fam": "-op", "sent": "I can hop on top."}, {"w": "top", "e": "🔝", "st": 2, "fam": "-op", "sent": "I can hop on top."}, {"w": "pop", "e": "🎈", "st": 2, "fam": "-op", "sent": "I can hop on top."}, {"w": "cop", "e": "👮", "st": 2, "fam": "-op", "sent": "I can hop on top."}, {"w": "cap", "e": "🧢", "st": 2, "fam": "-ap", "sent": "I nap in my cap."}, {"w": "map", "e": "🗺️", "st": 2, "fam": "-ap", "sent": "I nap in my cap."}, {"w": "nap", "e": "😴", "st": 2, "fam": "-ap", "sent": "I nap in my cap."}, {"w": "tap", "e": "🚰", "st": 2, "fam": "-ap", "sent": "I nap in my cap."}, {"w": "zap", "e": "⚡", "st": 2, "fam": "-ap", "sent": "I nap in my cap."}, {"w": "lap", "e": "🐈", "st": 2, "fam": "-ap", "sent": "I nap in my cap."}, {"w": "lip", "e": "👄", "st": 2, "fam": "-ip", "sent": "I can sip and dip."}, {"w": "dip", "e": "🥣", "st": 2, "fam": "-ip", "sent": "I can sip and dip."}, {"w": "zip", "e": "🤐", "st": 2, "fam": "-ip", "sent": "I can sip and dip."}, {"w": "sip", "e": "🥤", "st": 2, "fam": "-ip", "sent": "I can sip and dip."}, {"w": "rip", "e": "✂️", "st": 2, "fam": "-ip", "sent": "I can sip and dip."}, {"w": "chip", "e": "🍟", "st": 2, "fam": "ch", "sent": "The chick has a chip."}, {"w": "chin", "e": "🧔", "st": 2, "fam": "ch", "sent": "The chick has a chip."}, {"w": "chick", "e": "🐥", "st": 2, "fam": "ch", "sent": "The chick has a chip."}, {"w": "lunch", "e": "🍱", "st": 2, "fam": "ch", "sent": "The chick has a chip."}, {"w": "chop", "e": "🪓", "st": 2, "fam": "ch", "sent": "The chick has a chip."}, {"w": "net", "e": "🥅", "st": 2, "fam": "-et", "sent": "My pet is wet."}, {"w": "jet", "e": "✈️", "st": 2, "fam": "-et", "sent": "My pet is wet."}, {"w": "wet", "e": "💧", "st": 2, "fam": "-et", "sent": "My pet is wet."}, {"w": "pet", "e": "🐶", "st": 2, "fam": "-et", "sent": "My pet is wet."}, {"w": "vet", "e": "🩺", "st": 2, "fam": "-et", "sent": "My pet is wet."}, {"w": "hen", "e": "🐔", "st": 2, "fam": "-en", "sent": "The hen is in a pen."}, {"w": "pen", "e": "🖊️", "st": 2, "fam": "-en", "sent": "The hen is in a pen."}, {"w": "ten", "e": "🔟", "st": 2, "fam": "-en", "sent": "The hen is in a pen."}, {"w": "men", "e": "👬", "st": 2, "fam": "-en", "sent": "The hen is in a pen."}, {"w": "bed", "e": "🛏️", "st": 2, "fam": "-ed", "sent": "Ted is in a red bed."}, {"w": "red", "e": "🔴", "st": 2, "fam": "-ed", "sent": "Ted is in a red bed."}, {"w": "fed", "e": "🍼", "st": 2, "fam": "-ed", "sent": "Ted is in a red bed."}, {"w": "Ted", "e": "🧸", "st": 2, "fam": "-ed", "sent": "Ted is in a red bed."}, {"w": "tub", "e": "🛁", "st": 2, "fam": "-ub", "sent": "The cub is in the tub."}, {"w": "cub", "e": "🐻", "st": 2, "fam": "-ub", "sent": "The cub is in the tub."}, {"w": "rub", "e": "🧴", "st": 2, "fam": "-ub", "sent": "The cub is in the tub."}, {"w": "sub", "e": "🥪", "st": 2, "fam": "-ub", "sent": "The cub is in the tub."}, {"w": "bath", "e": "🛁", "st": 2, "fam": "th", "sent": "I am in the bath."}, {"w": "math", "e": "➗", "st": 2, "fam": "th", "sent": "I am in the bath."}, {"w": "moth", "e": "🦋", "st": 2, "fam": "th", "sent": "I am in the bath."}, {"w": "thin", "e": "📏", "st": 2, "fam": "th", "sent": "I am in the bath."}, {"w": "thick", "e": "📚", "st": 2, "fam": "th", "sent": "I am in the bath."}, {"w": "when", "e": "⏰", "st": 2, "fam": "wh", "sent": "When is lunch?"}, {"w": "which", "e": "❓", "st": 2, "fam": "wh", "sent": "When is lunch?"}, {"w": "whip", "e": "🍦", "st": 2, "fam": "wh", "sent": "When is lunch?"}, {"w": "whiz", "e": "💨", "st": 2, "fam": "wh", "sent": "When is lunch?"}, {"w": "clap", "e": "👏", "st": 3, "fam": "l-blends", "sent": "I am glad. I clap!"}, {"w": "flag", "e": "🚩", "st": 3, "fam": "l-blends", "sent": "I am glad. I clap!"}, {"w": "glad", "e": "😊", "st": 3, "fam": "l-blends", "sent": "I am glad. I clap!"}, {"w": "sled", "e": "🛷", "st": 3, "fam": "l-blends", "sent": "I am glad. I clap!"}, {"w": "plug", "e": "🔌", "st": 3, "fam": "l-blends", "sent": "I am glad. I clap!"}, {"w": "block", "e": "🧱", "st": 3, "fam": "l-blends", "sent": "I am glad. I clap!"}, {"w": "crab", "e": "🦀", "st": 3, "fam": "r-blends", "sent": "The frog is on a brick."}, {"w": "drum", "e": "🥁", "st": 3, "fam": "r-blends", "sent": "The frog is on a brick."}, {"w": "frog", "e": "🐸", "st": 3, "fam": "r-blends", "sent": "The frog is on a brick."}, {"w": "grin", "e": "😁", "st": 3, "fam": "r-blends", "sent": "The frog is on a brick."}, {"w": "truck", "e": "🚚", "st": 3, "fam": "r-blends", "sent": "The frog is on a brick."}, {"w": "brick", "e": "🧱", "st": 3, "fam": "r-blends", "sent": "The frog is on a brick."}, {"w": "stop", "e": "🛑", "st": 3, "fam": "s-blends", "sent": "I can swim and stop."}, {"w": "spin", "e": "🌀", "st": 3, "fam": "s-blends", "sent": "I can swim and stop."}, {"w": "swim", "e": "🏊", "st": 3, "fam": "s-blends", "sent": "I can swim and stop."}, {"w": "snap", "e": "📸", "st": 3, "fam": "s-blends", "sent": "I can swim and stop."}, {"w": "skunk", "e": "🦨", "st": 3, "fam": "s-blends", "sent": "I can swim and stop."}, {"w": "slip", "e": "🍌", "st": 3, "fam": "s-blends", "sent": "I can swim and stop."}, {"w": "hand", "e": "✋", "st": 3, "fam": "end blends", "sent": "A bird is in the nest."}, {"w": "jump", "e": "🦘", "st": 3, "fam": "end blends", "sent": "A bird is in the nest."}, {"w": "tent", "e": "⛺", "st": 3, "fam": "end blends", "sent": "A bird is in the nest."}, {"w": "nest", "e": "🪺", "st": 3, "fam": "end blends", "sent": "A bird is in the nest."}, {"w": "milk", "e": "🥛", "st": 3, "fam": "end blends", "sent": "A bird is in the nest."}, {"w": "belt", "e": "👖", "st": 3, "fam": "end blends", "sent": "A bird is in the nest."}, {"w": "ring", "e": "💍", "st": 3, "fam": "ang ing", "sent": "The king can sing."}, {"w": "king", "e": "🤴", "st": 3, "fam": "ang ing", "sent": "The king can sing."}, {"w": "sing", "e": "🎤", "st": 3, "fam": "ang ing", "sent": "The king can sing."}, {"w": "wing", "e": "🪽", "st": 3, "fam": "ang ing", "sent": "The king can sing."}, {"w": "swing", "e": "🛝", "st": 3, "fam": "ang ing", "sent": "The king can sing."}, {"w": "pink", "e": "🩷", "st": 3, "fam": "ank ink", "sent": "I drink at the sink."}, {"w": "sink", "e": "🚰", "st": 3, "fam": "ank ink", "sent": "I drink at the sink."}, {"w": "bank", "e": "🏦", "st": 3, "fam": "ank ink", "sent": "I drink at the sink."}, {"w": "wink", "e": "😉", "st": 3, "fam": "ank ink", "sent": "I drink at the sink."}, {"w": "drink", "e": "🧃", "st": 3, "fam": "ank ink", "sent": "I drink at the sink."}, {"w": "bee", "e": "🐝", "st": 4, "fam": "ee", "sent": "I see a bee in the tree."}, {"w": "tree", "e": "🌳", "st": 4, "fam": "ee", "sent": "I see a bee in the tree."}, {"w": "feet", "e": "🦶", "st": 4, "fam": "ee", "sent": "I see a bee in the tree."}, {"w": "green", "e": "🟢", "st": 4, "fam": "ee", "sent": "I see a bee in the tree."}, {"w": "sheep", "e": "🐑", "st": 4, "fam": "ee", "sent": "I see a bee in the tree."}, {"w": "three", "e": "3️⃣", "st": 4, "fam": "ee", "sent": "I see a bee in the tree."}, {"w": "eat", "e": "🍽️", "st": 4, "fam": "ea", "sent": "I eat a peach by the sea."}, {"w": "tea", "e": "🍵", "st": 4, "fam": "ea", "sent": "I eat a peach by the sea."}, {"w": "leaf", "e": "🍃", "st": 4, "fam": "ea", "sent": "I eat a peach by the sea."}, {"w": "sea", "e": "🌊", "st": 4, "fam": "ea", "sent": "I eat a peach by the sea."}, {"w": "read", "e": "📖", "st": 4, "fam": "ea", "sent": "I eat a peach by the sea."}, {"w": "peach", "e": "🍑", "st": 4, "fam": "ea", "sent": "I eat a peach by the sea."}, {"w": "rain", "e": "🌧️", "st": 4, "fam": "ai", "sent": "The snail is in the rain."}, {"w": "train", "e": "🚆", "st": 4, "fam": "ai", "sent": "The snail is in the rain."}, {"w": "snail", "e": "🐌", "st": 4, "fam": "ai", "sent": "The snail is in the rain."}, {"w": "mail", "e": "📬", "st": 4, "fam": "ai", "sent": "The snail is in the rain."}, {"w": "paint", "e": "🎨", "st": 4, "fam": "ai", "sent": "The snail is in the rain."}, {"w": "tail", "e": "🐕", "st": 4, "fam": "ai", "sent": "The snail is in the rain."}, {"w": "play", "e": "🛝", "st": 4, "fam": "ay", "sent": "We play all day."}, {"w": "day", "e": "☀️", "st": 4, "fam": "ay", "sent": "We play all day."}, {"w": "hay", "e": "🌾", "st": 4, "fam": "ay", "sent": "We play all day."}, {"w": "pay", "e": "💵", "st": 4, "fam": "ay", "sent": "We play all day."}, {"w": "tray", "e": "🍱", "st": 4, "fam": "ay", "sent": "We play all day."}, {"w": "spray", "e": "🧴", "st": 4, "fam": "ay", "sent": "We play all day."}, {"w": "hill", "e": "⛰️", "st": 3, "fam": "ff ll ss zz", "sent": "The bell is on the hill."}, {"w": "bell", "e": "🔔", "st": 3, "fam": "ff ll ss zz", "sent": "The bell is on the hill."}, {"w": "kiss", "e": "💋", "st": 3, "fam": "ff ll ss zz", "sent": "The bell is on the hill."}, {"w": "buzz", "e": "🐝", "st": 3, "fam": "ff ll ss zz", "sent": "The bell is on the hill."}, {"w": "puff", "e": "💨", "st": 3, "fam": "ff ll ss zz", "sent": "The bell is on the hill."}, {"w": "doll", "e": "🪆", "st": 3, "fam": "ff ll ss zz", "sent": "The bell is on the hill."}, {"w": "ball", "e": "⚽", "st": 3, "fam": "all", "sent": "The ball can fall."}, {"w": "tall", "e": "🦒", "st": 3, "fam": "all", "sent": "The ball can fall."}, {"w": "wall", "e": "🧱", "st": 3, "fam": "all", "sent": "The ball can fall."}, {"w": "fall", "e": "🍂", "st": 3, "fam": "all", "sent": "The ball can fall."}, {"w": "call", "e": "📞", "st": 3, "fam": "all", "sent": "The ball can fall."}, {"w": "mall", "e": "🛍️", "st": 3, "fam": "all", "sent": "The ball can fall."}, {"w": "cats", "e": "🐱", "st": 3, "fam": "-s", "sent": "I see six pigs."}, {"w": "dogs", "e": "🐶", "st": 3, "fam": "-s", "sent": "I see six pigs."}, {"w": "bugs", "e": "🐛", "st": 3, "fam": "-s", "sent": "I see six pigs."}, {"w": "hats", "e": "🎩", "st": 3, "fam": "-s", "sent": "I see six pigs."}, {"w": "cups", "e": "☕", "st": 3, "fam": "-s", "sent": "I see six pigs."}, {"w": "pigs", "e": "🐷", "st": 3, "fam": "-s", "sent": "I see six pigs."}, {"w": "car", "e": "🚗", "st": 4, "fam": "ar or", "sent": "The car is at the farm."}, {"w": "star", "e": "⭐", "st": 4, "fam": "ar or", "sent": "The car is at the farm."}, {"w": "farm", "e": "🚜", "st": 4, "fam": "ar or", "sent": "The car is at the farm."}, {"w": "corn", "e": "🌽", "st": 4, "fam": "ar or", "sent": "The car is at the farm."}, {"w": "fork", "e": "🍴", "st": 4, "fam": "ar or", "sent": "The car is at the farm."}, {"w": "horn", "e": "📯", "st": 4, "fam": "ar or", "sent": "The car is at the farm."}, {"w": "her", "e": "👩", "st": 4, "fam": "er ir ur", "sent": "The bird is on her hat."}, {"w": "bird", "e": "🐦", "st": 4, "fam": "er ir ur", "sent": "The bird is on her hat."}, {"w": "girl", "e": "👧", "st": 4, "fam": "er ir ur", "sent": "The bird is on her hat."}, {"w": "fur", "e": "🦊", "st": 4, "fam": "er ir ur", "sent": "The bird is on her hat."}, {"w": "surf", "e": "🏄", "st": 4, "fam": "er ir ur", "sent": "The bird is on her hat."}, {"w": "turn", "e": "🔄", "st": 4, "fam": "er ir ur", "sent": "The bird is on her hat."}, {"w": "coin", "e": "🪙", "st": 4, "fam": "oi oy", "sent": "The boy has a toy."}, {"w": "boy", "e": "👦", "st": 4, "fam": "oi oy", "sent": "The boy has a toy."}, {"w": "toy", "e": "🧸", "st": 4, "fam": "oi oy", "sent": "The boy has a toy."}, {"w": "soil", "e": "🌱", "st": 4, "fam": "oi oy", "sent": "The boy has a toy."}, {"w": "joy", "e": "😊", "st": 4, "fam": "oi oy", "sent": "The boy has a toy."}, {"w": "point", "e": "👉", "st": 4, "fam": "oi oy", "sent": "The boy has a toy."}], "weeks": [{"w": 1, "st": 1, "school": "K U1 · p j", "home": "p j + l h k"}, {"w": 2, "st": 1, "school": "K U1 · l h k", "home": "v w"}, {"w": 3, "st": 1, "school": "K U1 · v w", "home": "y x"}, {"w": 4, "st": 1, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 5, "st": 1, "school": "K U1 · y x", "home": "z qu"}, {"w": 6, "st": 1, "school": "K U1 · z qu", "home": "26 个字母混合 + 大写"}, {"w": 7, "st": 1, "school": "K U2 · 字母顺序、大写", "home": "-at -am -an"}, {"w": 8, "st": 1, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 9, "st": 1, "school": "K U2 · 拼 3 个音的词", "home": "-ad -it -in -id"}, {"w": 10, "st": 1, "school": "K U2 · 拼读", "home": "-ot -ug -un"}, {"w": 11, "st": 1, "school": "K U3 · CVC", "home": "-ut -ag -ig"}, {"w": 12, "st": 1, "school": "巩固周（不加新内容）", "home": "补练卡住的+阶段检查"}, {"w": 13, "st": 2, "school": "K U3 · CVC", "home": "-og -op -ap"}, {"w": 14, "st": 2, "school": "K U3 · CVC", "home": "-ip -et -en"}, {"w": 15, "st": 2, "school": "K U3 · CVC", "home": "-ed -ub + 听写 3 音词"}, {"w": 16, "st": 2, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 17, "st": 2, "school": "K U3 · CVC", "home": "sh ch"}, {"w": 18, "st": 2, "school": "K U3 · 拼写", "home": "th wh"}, {"w": 19, "st": 2, "school": "K U4 · 组合", "home": "ck"}, {"w": 20, "st": 2, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 21, "st": 2, "school": "K U4 · 组合", "home": "读句子"}, {"w": 22, "st": 2, "school": "K U4 · ck", "home": "大写和句号"}, {"w": 23, "st": 2, "school": "K U5 · 句子", "home": "可解码小书"}, {"w": 24, "st": 2, "school": "巩固周（不加新内容）", "home": "补练卡住的+阶段检查"}, {"w": 25, "st": 3, "school": "K U5 · 句子", "home": "ff ll ss zz"}, {"w": 26, "st": 3, "school": "K U5 · 句子", "home": "all"}, {"w": 27, "st": 3, "school": "K U5 · 小书", "home": "复数 -s"}, {"w": 28, "st": 3, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 29, "st": 3, "school": "学年末", "home": "ang ing"}, {"w": 30, "st": 3, "school": "暑假", "home": "ank ink"}, {"w": 31, "st": 3, "school": "暑假", "home": "l-blends"}, {"w": 32, "st": 3, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 33, "st": 3, "school": "暑假", "home": "r-blends"}, {"w": 34, "st": 3, "school": "暑假", "home": "s-blends"}, {"w": 35, "st": 3, "school": "暑假", "home": "end blends"}, {"w": 36, "st": 3, "school": "巩固周（不加新内容）", "home": "补练卡住的+阶段检查"}, {"w": 37, "st": 4, "school": "暑假", "home": "ar or"}, {"w": 38, "st": 4, "school": "暑假", "home": "er ir ur"}, {"w": 39, "st": 4, "school": "暑假", "home": "ai ay"}, {"w": 40, "st": 4, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 41, "st": 4, "school": "一年级 L1 U1", "home": "ee ea"}, {"w": 42, "st": 4, "school": "L1 U1–2", "home": "oi oy"}, {"w": 43, "st": 4, "school": "L1 U2", "home": "连缀 + 元音组合混合"}, {"w": 44, "st": 4, "school": "巩固周（不加新内容）", "home": "补练卡住的+小测"}, {"w": 45, "st": 4, "school": "L1 U3", "home": "读可解码短文"}, {"w": 46, "st": 4, "school": "L1 U3–4", "home": "读可解码短文"}, {"w": 47, "st": 4, "school": "L1 U4", "home": "全年混合复习"}, {"w": 48, "st": 4, "school": "巩固周（不加新内容）", "home": "补练卡住的+阶段检查"}], "hearts": [{"w": "look", "t": "oo 像两只眼睛 👀：look 就是用眼睛看"}, {"w": "see", "t": "ee 也是两只眼睛 👀：see 也是看"}, {"w": "said", "t": "s 和 d 按规律读；ai 在这里读 /ĕ/，画个 ❤ 用心记"}, {"w": "was", "t": "w 和 s 按规律读；a 读 /ŭ/，画个 ❤"}, {"w": "the", "t": "th 学过；e 读得很轻，画个 ❤"}, {"w": "you", "t": "y 学过；ou 读 /oo/，画个 ❤"}, {"w": "two", "t": "t 按规律读；w 不发音 —— w 有两个尖，正好是 2"}, {"w": "one", "t": "整个词都要用心记 ❤：说“one 只有一个，要特别记”"}, {"w": "yellow", "t": "ll 像两根竖着的香蕉 🍌🍌，香蕉是 yellow"}, {"w": "my / by / fly", "t": "y 在词尾读 /ī/：编一句 “My fly flies by.”"}]}</script>
+<script>
+(() => {
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const DOC_URL = 'https://claude.ai/artifact/U6jodSFNE6q8qf7uCVZ63s';
+const START = new Date(2026, 10, 9);          // 第 1 周的周一
+const LKEY = 'luca-cardbox-v1';
+const BOXES = ['1', '2', '3', '4', '5', 'm', 'q'];
+const BOXNAME = { '1': '1 号盒', '2': '2 号盒', '3': '3 号盒', '4': '4 号盒', '5': '5 号盒', m: '已掌握', q: '待学' };
+const BOXWHEN = { '1': '每天', '2': '一三五', '3': '二五', '4': '周四', '5': '单数周五', m: '每月抽查', q: '还没学' };
+const COLOR = { '1': 'var(--b1)', '2': 'var(--b2)', '3': 'var(--b3)', '4': 'var(--b4)', '5': 'var(--b5)', m: 'var(--bm)', q: 'var(--bq)' };
+const SCHOOL_TAUGHT = 'a b c d e f g i m n o r s t u'.split(' ');
+const SENT = { my: 'This is my LEGO.', am: 'I am Luca.', it: 'I did it!', in: 'The cat is in the box.', you: 'I see you!', at: 'Look at me.',
+  I: 'I can run.', the: 'Look at the dog.', and: 'Mom and Dad.', to: 'Go to bed.', on: 'Sit on the mat.', we: 'We can play.', for: 'This is for you.',
+  like: 'I like LEGO.', me: 'Look at me.', is: 'It is red.', go: "Let's go!", of: 'A cup of milk.', no: 'No, thank you.', will: 'I will help.', get: 'Get the ball.',
+  a: 'I see a dog.', can: 'I can jump.', see: 'I see you.', look: 'Look at me!', here: 'Come here.', play: 'Can we play?', said: 'Mom said yes.', up: 'Get up!',
+  big: 'A big truck.', red: 'A red car.', help: 'Help me, please.', come: 'Come here.', run: 'Run, run, run!', jump: 'Jump up!', not: 'It is not hot.' };
+const USE = { my: '拿起他的东西说 "my ___"（my cup, my shoe）', you: '捉迷藏时说 "I see you!"', me: '让他说 "Look at me!"', I: '让他说 "I can ___"', like: '吃饭时说 "I like ___"' };
+const HEART = {};
+DATA.hearts.forEach(h => h.w.split(' / ').forEach(w => HEART[w] = h.t));
+
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const dstr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const fmt = sec => `${Math.floor(sec / 60)}:${pad(Math.floor(sec % 60))}`;
+function today() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function weekNo(d) { return Math.floor((d - START) / 864e5 / 7) + 1; }
+function dueBoxes(d) {
+  const dow = d.getDay(), wk = weekNo(d);
+  const m = { 1: ['1', '2'], 2: ['1', '3'], 3: ['1', '2'], 4: ['1', '4'], 5: ['1', '2', '3'] }[dow] || [];
+  if (dow === 5 && Math.abs(wk) % 2 === 1) m.push('5');
+  return m;
+}
+const WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+// ---------- catalog ----------
+let CAT = {};
+function letterKey(l) { if (l === 'Qu qu') return 'qu'; if (l.length === 2 && l[0] !== l[0].toLowerCase()) return l[1]; return l; }
+function buildCatalog() {
+  CAT = {};
+  const add = (id, o) => { if (CAT[id]) { o.src.forEach(s => CAT[id].src.includes(s) || CAT[id].src.push(s)); if (o.mark) CAT[id].mark = o.mark; return; } CAT[id] = { id, ...o }; };
+  DATA.letters.forEach(x => add('L:' + x.l, { kind: 'L', text: x.l, key: letterKey(x.l), src: ['字母'], e: x.e, kw: x.k, snd: x.s }));
+  DATA.school.forEach(x => add('S:' + x.w, { kind: 'S', text: x.w, src: ['学校'], mark: x.m }));
+  (state.custom || []).forEach(c => add(c.id, { kind: 'S', text: c.w, src: ['新加'] }));
+  DATA.pp.forEach(w => add('S:' + w, { kind: 'S', text: w, src: ['PP'] }));
+  DATA.p.forEach(w => add('S:' + w, { kind: 'S', text: w, src: ['P'] }));
+  DATA.g1.forEach(w => add('S:' + w, { kind: 'S', text: w, src: ['G1'] }));
+  DATA.words.forEach(x => add('W:' + x.w, { kind: 'W', text: x.w, src: ['拼读'], e: x.e, st: x.st, fam: x.fam, sent: x.sent }));
+}
+const SRCNAME = { 学校: '老师的词', 新加: '新加的词', 字母: '字母音', PP: 'Dolch PP', P: 'Dolch P', G1: 'Dolch 一年级', 拼读: '拼读词' };
+
+// ---------- state ----------
+function emptyState() { return { v: 1, cards: {}, custom: [], timer: [], daily: {} }; }
+function normalize(s) { s = JSON.parse(JSON.stringify(s || {})); const e = emptyState(); for (const k in e) if (s[k] == null) s[k] = e[k]; return s; }
+let state = emptyState();
+try { const raw = localStorage.getItem(LKEY); if (raw) state = normalize(JSON.parse(raw)); } catch (e) {}
+buildCatalog();
+const st = id => state.cards[id] || { b: 'q' };
+const boxOf = id => st(id).b;
+function setCard(id, patch) { state.cards[id] = { ...st(id), ...patch }; }
+function logDay(k, n = 1) { const t = dstr(today()); const d = state.daily[t] || (state.daily[t] = { r: 0, ok: 0, nw: 0 }); d[k] = (d[k] || 0) + n; }
+function pruneDaily() { const keys = Object.keys(state.daily).sort(); while (keys.length > 120) delete state.daily[keys.shift()]; }
+
+// ---------- persistence: db (synced) with this-device fallback ----------
+let dbRef = null, saving = false, dirty = false, saveTimer = null, syncMode = 'local', syncNote = '';
+function persist() {
+  pruneDaily();
+  try { localStorage.setItem(LKEY, JSON.stringify(state)); } catch (e) {}
+  if (!dbRef) return;
+  dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(flush, 700);
+}
+async function flush() {
+  if (!dbRef || saving || !dirty) return;
+  saving = true; dirty = false;
+  try { await dbRef.set(JSON.parse(JSON.stringify(state))); syncNote = ''; }
+  catch (e) { syncNote = '没能同步（' + (e && e.code || '网络') + '），记录先存在这台设备上'; renderSync(); }
+  saving = false;
+  if (dirty) flush();
+}
+function hasData(s) { return Object.keys(s.cards).length || s.timer.length; }
+(async () => {
+  const c = window.claude;
+  if (!c || !c.use) { syncMode = 'local'; renderSync(); return; }
+  let db = null;
+  try { db = await c.use('db'); } catch (e) {}
+  if (!db) { syncMode = 'local'; renderSync(); return; }
+  dbRef = db.doc('luca/state');
+  syncMode = 'loading'; renderSync();
+  const to = setTimeout(() => { syncNote = '暂时连不上同步数据，显示的是这台设备上的记录'; renderSync(); }, 10000);
+  dbRef.onSnapshot(snap => {
+    if (!snap.metadata.fromCache) { clearTimeout(to); syncNote = ''; syncMode = 'sync'; }
+    if (snap.exists) {
+      if (!dirty && !saving && !snap.metadata.hasPendingWrites) {
+        state = normalize(snap.data());
+        try { localStorage.setItem(LKEY, JSON.stringify(state)); } catch (e) {}
+        buildCatalog();
+        if ($('#stage').hidden && $('#sheet').hidden) render();
+      }
+    } else if (!snap.metadata.fromCache && hasData(state)) { dirty = true; flush(); }
+    renderSync();
+  }, err => { clearTimeout(to); dbRef = null; syncMode = 'local'; syncNote = '同步断开了（' + (err && err.code || '') + '），记录先存在这台设备上'; renderSync(); });
+})();
+function renderSync() {
+  const el = $('#sync'); if (!el) return;
+  el.textContent = syncNote || ({ sync: '已同步 · iPad 和手机看到的是同一份记录', loading: '正在读取同步数据…', local: '记录存在这台设备上 · 换设备前在「说明」里备份' }[syncMode]);
+}
+
+// ---------- views ----------
+let view = 'today';
+try { view = localStorage.getItem(LKEY + ':view') || 'today'; } catch (e) {}
+let boxTab = '1', srcFilter = '学校';
+const TABS = [['today', '☀️', '今天'], ['boxes', '🗂️', '卡盒'], ['timer', '⏱️', '计时'], ['help', '📖', '说明']];
+function render() {
+  $('#tabs').innerHTML = TABS.map(([k, ic, n]) => `<button data-tab="${k}" class="${view === k ? 'on' : ''}" aria-label="${n}"><span class="ic">${ic}</span>${n}</button>`).join('');
+  $('#app').innerHTML = ({ today: vToday, boxes: vBoxes, timer: vTimer, help: vHelp }[view])();
+  renderSync();
+  if (view === 'timer') tickTimer();
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-tab]');
+  if (t) { view = t.dataset.tab; try { localStorage.setItem(LKEY + ':view', view); } catch (er) {} render(); window.scrollTo(0, 0); }
+});
+
+function counts() { const c = {}; BOXES.forEach(b => c[b] = 0); Object.keys(CAT).forEach(id => c[boxOf(id)]++); return c; }
+function dueList(boxes, ignoreDate) {
+  const t = dstr(today());
+  const ids = Object.keys(state.cards).filter(id => CAT[id] && boxes.includes(st(id).b) && (ignoreDate || st(id).d !== t));
+  return boxes.flatMap(b => shuffle(ids.filter(id => st(id).b === b)));
+}
+function weekInfo() { const w = Math.min(48, Math.max(1, weekNo(today()))); return { w, cur: DATA.weeks[w - 1], next: DATA.weeks[w] }; }
+
+function vToday() {
+  const d = today(), t = dstr(d), wi = weekInfo(), c = counts();
+  const boxes = dueBoxes(d), due = dueList(boxes), day = state.daily[t] || { r: 0, ok: 0, nw: 0 };
+  const consolidation = wi.cur.home.startsWith('补练');
+  const chips = boxes.map(b => { const n = due.filter(id => st(id).b === b).length;
+    return `<span class="chip"><span class="dot" style="background:${COLOR[b]}"></span>${BOXNAME[b]} ${n} 张</span>`; }).join('');
+  const weekend = !boxes.length;
+  return `
+  <header><div class="eyebrow">${d.getMonth() + 1} 月 ${d.getDate()} 日 ${WD[d.getDay()]} · 第 ${wi.w} 周 / 48 · 阶段 ${wi.cur.st}</div><h1>今天</h1><div class="sync" id="sync"></div></header>
+  <section class="panel">
+    <h2>这周学什么</h2>
+    <div class="grid2">
+      <div class="kv"><span class="small">家里先学（比学校早约 1 周）</span><b>${esc(wi.cur.home)}</b></div>
+      <div class="kv"><span class="small">学校这周（估计，以老师周报为准）</span><b>${esc(wi.cur.school || '—')}</b></div>
+    </div>
+    ${consolidation ? '<p class="small">巩固周：卡盒复习照常，不加新卡，放学后补练他卡住的词。</p>' : ''}
+  </section>
+  <section class="panel">
+    <h2>早上 5 分钟 · 复习卡盒</h2>
+    ${weekend ? '<p>周末不用复习卡盒，亲子共读绘本就好。</p>' : `<div class="row">${chips}</div>`}
+    ${weekend ? '' : due.length
+      ? `<button class="btn primary wide" data-act="review">开始复习（${due.length} 张）</button>`
+      : `<p>今天该复习的都复习完了 ✓ ${day.r ? `读了 ${day.r} 张，读对 ${day.ok} 张。` : ''}</p>`}
+  </section>
+  <section class="panel">
+    <h2>放学后 · 学新卡（夹心法）</h2>
+    ${c['1'] >= 10 ? `<div class="warn">1 号盒已经 ${c['1']} 张。超过 10 张就先不加新卡，今天多复习、玩游戏。</div>` : ''}
+    <p class="small">一次 1 个新词，最多 2 个。今天已经加了 ${day.nw || 0} 个。</p>
+    <button class="btn ${c['1'] >= 10 || consolidation ? 'ghost' : 'primary'} wide" data-act="learn">学一个新词</button>
+  </section>
+  <section class="panel">
+    <h2>卡盒现在</h2>
+    <div class="boxes">${BOXES.map(b => `<button class="boxtab" style="--c:${COLOR[b]}" data-act="gobox" data-b="${b}"><span class="bar"></span><span class="n">${c[b]}</span><span class="l">${BOXNAME[b]}</span></button>`).join('')}</div>
+    ${Object.keys(state.cards).length < 5 ? `<p class="small">卡盒还是空的。可以直接用 11 月 9 日按老师流利度表分好的起点（my am it in → 1 号盒，you at → 2 号盒，其余 15 个 → 3 号盒），再去「卡盒 → 待学 → 分拣」把会的字母放进去。</p><button class="btn primary wide" data-act="starter">用学校词表的起点开始</button>` : ''}
+  </section>`;
+}
+
+function vBoxes() {
+  const c = counts();
+  let ids = Object.keys(CAT).filter(id => boxOf(id) === boxTab);
+  if (boxTab === 'q') ids = ids.filter(id => CAT[id].src.includes(srcFilter));
+  const srcs = ['学校', '新加', '字母', 'PP', 'P', 'G1', '拼读'];
+  return `
+  <header><div class="eyebrow">读对往后移一盒，读错回 1 号盒</div><h1>卡盒</h1><div class="sync" id="sync"></div></header>
+  <div class="boxes">${BOXES.map(b => `<button class="boxtab ${boxTab === b ? 'on' : ''}" style="--c:${COLOR[b]}" data-act="tab" data-b="${b}"><span class="bar"></span><span class="n">${c[b]}</span><span class="l">${BOXNAME[b]}</span></button>`).join('')}</div>
+  <section class="panel">
+    <div class="row" style="justify-content:space-between"><h2>${BOXNAME[boxTab]} · ${BOXWHEN[boxTab]}</h2>
+      ${boxTab === 'q' ? `<select id="src" aria-label="来源">${srcs.map(s => `<option value="${s}" ${s === srcFilter ? 'selected' : ''}>${SRCNAME[s]}</option>`).join('')}</select>` : ''}</div>
+    ${ids.length ? `<div class="cards">${ids.map(id => `<button class="wc" style="--c:${COLOR[boxTab]}" data-act="card" data-id="${esc(id)}">${esc(CAT[id].text)}</button>`).join('')}</div>` : '<p class="small">这一盒是空的。</p>'}
+    ${boxTab === 'q' && ids.length ? `<button class="btn primary wide" data-act="sort">分拣这 ${ids.length} 张（他会的直接进盒，不用重学）</button>` : ''}
+    ${boxTab !== 'q' && ids.length ? `<button class="btn ghost wide" data-act="reviewbox">补复习这一盒（漏了某天时用）</button>` : ''}
+    <p class="small">点一张卡可以移盒、记录四关。</p>
+  </section>
+  <section class="panel">
+    <h2>加老师的新词</h2>
+    <p class="small">老师每周发的词表：他不会的加进 1 号盒，会的加进「待学」再分拣。</p>
+    <div class="row"><input id="neww" placeholder="例如 said" autocomplete="off" autocapitalize="off" spellcheck="false" style="flex:1">
+      <button class="btn primary" data-act="add" data-b="1">进 1 号盒</button><button class="btn" data-act="add" data-b="q">进待学</button></div>
+    <p class="small" id="addmsg"></p>
+  </section>`;
+}
+
+// timer
+let tStart = 0, tElapsed = 0, tRun = false, tRAF = 0, lastSaved = null;
+function curSec() { return (tElapsed + (tRun ? performance.now() - tStart : 0)) / 1000; }
+function tickTimer() { const el = $('#tdisp'); if (!el) return; const s = curSec(); el.textContent = `${Math.floor(s / 60)}:${pad(Math.floor(s % 60))}.${Math.floor(s * 10) % 10}`; if (tRun) tRAF = requestAnimationFrame(tickTimer); }
+function vTimer() {
+  const labels = [...new Set(state.timer.map(r => r.label))];
+  const best = {}; state.timer.forEach(r => { if (best[r.label] == null || r.sec < best[r.label]) best[r.label] = r.sec; });
+  const recent = state.timer.slice(-14).reverse();
+  return `
+  <header><div class="eyebrow">老师的流利度表：每天读一遍，和自己比</div><h1>计时</h1><div class="sync" id="sync"></div></header>
+  <section class="panel">
+    <div class="row"><input id="tlabel" list="tlabels" value="${esc(labels[labels.length - 1] || '流利度表 1')}" aria-label="读的是哪张表" style="flex:1">
+      <datalist id="tlabels">${labels.map(l => `<option value="${esc(l)}">`).join('')}</datalist></div>
+    <div class="timer" id="tdisp">0:00.0</div>
+    <div class="grid2">
+      <button class="btn ${tRun ? 'bad' : 'good'}" data-act="tgo">${tRun ? '停' : (tElapsed ? '继续' : '开始')}</button>
+      ${!tRun && tElapsed ? '<button class="btn primary" data-act="tsave">记下这次</button>' : '<button class="btn" data-act="treset">清零</button>'}
+    </div>
+    ${lastSaved ? `<div class="warn" style="text-align:center;font-size:17px">${lastSaved}</div>` : ''}
+    ${!tRun && tElapsed ? '<button class="btn ghost" data-act="treset">不记，清零</button>' : ''}
+  </section>
+  <section class="panel">
+    <h2>记录</h2>
+    ${labels.length ? `<div class="row">${labels.map(l => `<span class="chip">★ ${esc(l)} 最好 ${fmt(best[l])}</span>`).join('')}</div>` : ''}
+    ${recent.length ? `<div style="overflow-x:auto"><table class="rec"><tr><th>日期</th><th>表</th><th>用时</th></tr>${recent.map(r => `<tr><td>${esc(r.d.slice(5))}</td><td>${esc(r.label)}</td><td>${fmt(r.sec)}${r.sec === best[r.label] ? ' ★' : ''}</td></tr>`).join('')}</table></div>` : '<p class="small">还没有记录。读完一遍按「停」，再按「记下这次」。</p>'}
+  </section>`;
+}
+
+function vHelp() {
+  return `
+  <header><div class="eyebrow">和材料包、在线文档是同一套方法</div><h1>说明</h1></header>
+  <section class="panel help">
+    <h2>每天 15 分钟</h2>
+    <ol><li><b>早上 5 分钟：</b>「今天」→ 开始复习。只出现今天该复习的盒子。</li>
+    <li><b>放学后：</b>回顾昨天的新卡 → 学这周「家里先学」的内容 → 「学一个新词」（夹心法）。</li>
+    <li>在他读对的时候结束，别等他烦了才停。</li></ol>
+  </section>
+  <section class="panel help">
+    <h2>复习时你按哪个键</h2>
+    <ul><li><b>✓ 读对了：</b>3 秒内读出来。卡往后移一盒。</li>
+    <li><b>还不会：</b>超过 3 秒或读错。你读一遍，他跟读，卡回 1 号盒。</li>
+    <li>卡盒复习时间：1 号盒每天 · 2 号盒一三五 · 3 号盒二五 · 4 号盒周四 · 5 号盒单数周五（间隔 1 → 2 → 3–4 → 7 → 14 天）。</li></ul>
+  </section>
+  <section class="panel help">
+    <h2>什么时候算「会了」（标准不变）</h2>
+    <ul><li>5 号盒读对，<b>并且</b>当场用这个词说一句自己的话，<b>并且</b>在生活或书里用出来过 → 才进「已掌握」。</li>
+    <li>只读对、说不出来 → 留在 5 号盒，下次再查。</li>
+    <li>四关：认得 → 说出来 → 用出来 → 教别人（费曼学习法）。在卡盒里点一张卡就能记。</li></ul>
+  </section>
+  <section class="panel help">
+    <h2>夹心法学新词</h2>
+    <ol><li>我读你跟（能拼的先拼）。</li><li>新词夹在会的卡中间：新词 + 1 张 → + 2 张 → … → + 8 张。卡住 3 秒你直接说。</li>
+    <li>说出来：用这个词说一句话。</li><li>用出来：今天在生活里用一次。</li><li>进 1 号盒。1 号盒超过 10 张就先不加新卡。</li></ol>
+  </section>
+  <section class="panel">
+    <h2>备份 / 换设备</h2>
+    <p class="small">记录存在这台设备的浏览器或 App 里。换手机、清浏览器数据前，先复制备份；在新设备上粘贴恢复。</p>
+    <textarea id="bk" rows="3" style="width:100%;font:13px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface);color:var(--ink)" placeholder="在这里粘贴备份" aria-label="备份内容"></textarea>
+    <div class="grid2"><button class="btn" data-act="bk-copy">复制备份</button><button class="btn ghost" data-act="bk-load">粘贴的备份 → 恢复</button></div>
+    <p class="small" id="bkmsg"></p>
+  </section>
+  <section class="panel"><p class="small">完整计划：<a href="${DOC_URL}" target="_blank" rel="noopener">Luca 的一年 Phonics 学习计划</a>。在 claude.ai 打开的版本会在 iPad 和手机之间自动同步；手机浏览器版和安卓 App 的记录只存在本机。</p></section>`;
+}
+
+// ---------- card sheet ----------
+function openCard(id) {
+  const c = CAT[id], s = st(id), b = s.b;
+  const lv = [['ok', '⭐ 认得', '卡盒里 3 秒内读对', b === '4' || b === '5' || b === 'm'], ['s', '🗣️ 说出来', '用这个词说一句自己的话', !!s.s], ['u', '🧱 用出来', '生活里、书里自己用上', !!s.u], ['tch', '👨‍🏫 教别人', '教会哥哥或小熊', !!s.tch]];
+  $('#sheet').innerHTML = `<div class="in" role="dialog" aria-label="${esc(c.text)}">
+    <div class="row" style="justify-content:space-between"><span class="small">${c.src.map(x => SRCNAME[x]).join(' · ')}${c.mark ? ' · ' + (c.mark === '❤' ? '心形词' : '能拼') : ''}</span><button class="btn ghost" data-act="close">关闭</button></div>
+    <div style="text-align:center"><span class="flash sm" style="--c:${COLOR[b]};display:inline-block">${esc(c.text)}</span></div>
+    ${cardHint(c)}
+    <h2>放进哪一盒</h2>
+    <div class="movers">${BOXES.map(x => `<button style="--c:${COLOR[x]}" class="${x === b ? 'on' : ''}" data-act="move" data-id="${esc(id)}" data-b="${x}" ${x === 'm' && !(s.s && s.u) ? 'disabled title="要先过「说出来」和「用出来」"' : ''}>${x === 'm' ? '✓' : x === 'q' ? '?' : x}</button>`).join('')}</div>
+    <p class="small">「已掌握」要先勾上「说出来」和「用出来」。</p>
+    <h2>四关</h2>
+    <div class="checks">${lv.map(([k, n, d, on]) => `<button class="check ${on ? 'on' : ''}" ${k === 'ok' ? 'disabled' : `data-act="lv" data-id="${esc(id)}" data-k="${k}"`}><span class="bx">${on ? '✓' : ''}</span><span><b>${n}</b><br><span class="small">${d}${k === 'ok' ? '（4 号盒以上自动算）' : ''}</span></span></button>`).join('')}</div>
+  </div>`;
+  $('#sheet').hidden = false;
+}
+function cardHint(c) {
+  if (c.kind === 'L') return `<p class="hint" style="margin:0 auto">${c.e} <b>${esc(c.kw)}</b> ${esc(c.snd)}　说音，不说字母名</p>`;
+  const h = HEART[c.text];
+  if (h) return `<p class="hint" style="margin:0 auto">❤ ${esc(h)}</p>`;
+  if (c.mark === '拼' || c.kind === 'W') return `<p class="hint" style="margin:0 auto">能拼的词：指着字母一个个说音，再连起来读${c.e ? ' ' + c.e : ''}</p>`;
+  return '';
+}
+$('#sheet').addEventListener('click', e => { if (e.target === $('#sheet')) closeSheet(); });
+function closeSheet() { $('#sheet').hidden = true; render(); }
+
+// ---------- stage (sessions) ----------
+let S = null;
+function openStage() { $('#stage').hidden = false; document.body.style.overflow = 'hidden'; }
+function closeStage() { S = null; $('#stage').hidden = true; document.body.style.overflow = ''; render(); }
+function flashHTML(id, extra = '') {
+  const c = CAT[id];
+  return `<div class="flash ${c.text.length > 5 ? 'sm' : ''}" style="--c:${COLOR[boxOf(id)]}">${esc(c.text)}</div>${extra}`;
+}
+function top(label, frac) { return `<div class="top"><button class="btn ghost" data-act="stop">停</button><div class="prog"><i style="width:${Math.round(frac * 100)}%"></i></div><span class="small">${label}</span></div>`; }
+
+// review
+function startReview(ids, title) { if (!ids.length) return; S = { mode: 'review', ids, i: 0, ok: 0, bad: 0, phase: 'card', title }; openStage(); drawStage(); }
+function exampleSentence(c) { if (c.kind === 'L') return `${c.kw}… 再说一个 ${c.snd} 开头的词`; return SENT[c.text] || c.sent || `说一句带 “${c.text}” 的话`; }
+function sayTask(c) { return c.kind === 'L' ? `说出 2 个 <b>${esc(c.snd)}</b> 开头的词` : `用 <b>${esc(c.text)}</b> 说一句自己的话`; }
+function drawReview() {
+  const id = S.ids[S.i], c = CAT[id], b = boxOf(id);
+  let body, acts;
+  if (S.phase === 'card') {
+    body = flashHTML(id, `<p class="parent">${BOXNAME[b]} · ${S.title}${S.peek ? '' : ' · <button class="tag" data-act="peek">提示</button>'}</p>${S.peek ? cardHint(c) : ''}`);
+    acts = `<div class="acts"><button class="btn bad" data-act="no">还不会</button><button class="btn good" data-act="yes">✓ 读对了</button></div>`;
+  } else if (S.phase === 'redo') {
+    body = flashHTML(id, `<p class="hint">你读：<b>${esc(c.text)}</b>，他跟读一遍。卡回 1 号盒，明天再见。</p>${cardHint(c)}`);
+    acts = `<div class="acts one"><button class="btn primary" data-act="next">跟读了，下一张</button></div>`;
+  } else if (S.phase === 'master') {
+    const m = S.m;
+    body = `<div class="flash sm" style="--c:var(--bm)">${esc(c.text)}</div>
+      <p class="hint"><b>5 号盒读对了！</b>进「已掌握」还要过两关：</p>
+      <div class="checks">
+        <button class="check ${m.s ? 'on' : ''}" data-act="mk" data-k="s"><span class="bx">${m.s ? '✓' : ''}</span><span><b>说出来</b>　他自己${sayTask(c)}<br><span class="small">例：${esc(exampleSentence(c))}</span></span></button>
+        <button class="check ${m.u ? 'on' : ''}" data-act="mk" data-k="u"><span class="bx">${m.u ? '✓' : ''}</span><span><b>用出来</b>　在生活或书里自己用上、读出来过</span></button>
+      </div>`;
+    acts = `<div class="acts"><button class="btn" data-act="stay">还没有 → 留在 5 号盒</button><button class="btn good" data-act="master" ${m.s && m.u ? '' : 'disabled'}>都做到了 → ✓ 已掌握</button></div>`;
+  }
+  return top(`${S.i + 1} / ${S.ids.length}`, S.i / S.ids.length) + `<div class="big">${body}</div>` + acts + (S.phase === 'card' && S.i > 0 && S.lastOk ? `<p class="note">刚读对一张，现在停也很好。</p>` : '');
+}
+function reviewAnswer(ok) {
+  const id = S.ids[S.i], b = boxOf(id), t = dstr(today());
+  logDay('r');
+  if (ok) {
+    logDay('ok'); S.ok++;
+    if (b === '5') { const s = st(id); S.m = { s: !!s.s, u: !!s.u }; S.phase = 'master'; return drawStage(); }
+    setCard(id, { b: b === 'm' ? 'm' : String(Math.min(5, (+b || 0) + 1)), d: t });
+    persist(); S.lastOk = true; return nextCard();
+  }
+  S.bad++; S.lastOk = false;
+  setCard(id, { b: '1', d: t }); persist();
+  S.phase = 'redo'; drawStage();
+}
+function nextCard() { S.i++; S.phase = 'card'; S.peek = false; if (S.i >= S.ids.length) return finish(); drawStage(); }
+function finish() {
+  const r = S.mode === 'review' ? `读了 ${S.i} 张，读对 ${S.ok} 张。` : S.mode === 'sort' ? `分拣了 ${S.i} 张。` : '';
+  $('#stage').innerHTML = `<div class="big"><div class="flash sm" style="--c:var(--b4)">✓</div><p class="hint"><b>做完了！</b>${r}</p>
+    ${S.mode === 'review' && S.bad ? '<p class="hint">读错的卡回到了 1 号盒，明天早上再见。</p>' : ''}</div>
+    <div class="acts one"><button class="btn primary" data-act="close-stage">回到今天</button></div>`;
+}
+
+// sort
+function startSort(ids) { S = { mode: 'sort', ids: shuffle(ids), i: 0 }; openStage(); drawStage(); }
+function drawSort() {
+  const id = S.ids[S.i];
+  return top(`分拣 ${S.i + 1} / ${S.ids.length}`, S.i / S.ids.length) +
+    `<div class="big">${flashHTML(id, `<p class="parent">他会的直接进盒，不会的留在待学</p>`)}</div>
+    <div class="acts" style="grid-template-columns:1fr 1fr 1fr"><button class="btn" data-act="s-q">不会 → 待学</button><button class="btn" style="background:var(--b2);color:#fff" data-act="s-2">读对但慢 → 2 号盒</button><button class="btn good" data-act="s-4">3 秒内读对 → 4 号盒</button></div>`;
+}
+
+// learn (sandwich)
+function knownPool(kind) {
+  const ok = id => ['3', '4', '5', 'm'].includes(boxOf(id));
+  const all = Object.keys(state.cards).filter(id => CAT[id] && ok(id));
+  const same = shuffle(all.filter(id => CAT[id].kind === kind)), other = shuffle(all.filter(id => CAT[id].kind !== kind));
+  return same.concat(other).slice(0, 8);
+}
+function startLearn() { S = { mode: 'learn', step: 0, q: '' }; openStage(); drawStage(); }
+function learnCandidates() {
+  const wi = weekInfo(), toks = (wi.cur.home + ' ' + (wi.next ? wi.next.home : '')).toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  const inQ = id => boxOf(id) === 'q';
+  const ids = Object.keys(CAT);
+  const groups = [
+    ['老师的词', ids.filter(id => inQ(id) && (CAT[id].src.includes('学校') || CAT[id].src.includes('新加')))],
+    ['这周的字母音', ids.filter(id => inQ(id) && CAT[id].kind === 'L' && toks.includes(CAT[id].key))],
+    ['这周的拼读词', ids.filter(id => inQ(id) && CAT[id].kind === 'W' && toks.some(t => CAT[id].fam && CAT[id].fam.replace('-', '') === t))],
+    ['Dolch PP', ids.filter(id => inQ(id) && CAT[id].src.includes('PP'))],
+  ];
+  return groups.filter(g => g[1].length);
+}
+function drawLearn() {
+  const steps = `<div class="steps">${[1, 2, 3, 4, 5].map(n => `<span class="${S.step >= n ? 'on' : ''}"></span>`).join('')}</div>`;
+  const c1 = counts()['1'];
+  if (S.step === 0) {
+    const q = S.q.trim().toLowerCase();
+    const found = q ? Object.keys(CAT).filter(id => boxOf(id) === 'q' && CAT[id].text.toLowerCase().startsWith(q)).slice(0, 24) : [];
+    return `<div class="top"><button class="btn ghost" data-act="stop">取消</button><span class="small">选今天的新词</span></div>
+      <div style="overflow:auto;flex:1;max-width:900px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+      ${c1 >= 10 ? `<div class="warn">1 号盒已经 ${c1} 张。规则是超过 10 张先不加新卡，今天多复习就好。</div>` : ''}
+      <input id="lq" placeholder="搜索一个词" value="${esc(S.q)}" autocomplete="off" autocapitalize="off" spellcheck="false">
+      ${q ? `<div class="pick">${found.map(id => `<button data-act="pickw" data-id="${esc(id)}">${esc(CAT[id].text)}</button>`).join('') || '<span class="small">待学里没有这个词，可以在「卡盒」里加</span>'}</div>` : ''}
+      ${learnCandidates().map(([n, l]) => `<div><h2 style="margin-bottom:8px">${n}</h2><div class="pick">${l.slice(0, 18).map(id => `<button data-act="pickw" data-id="${esc(id)}">${esc(CAT[id].text)}</button>`).join('')}</div></div>`).join('')}
+      </div>`;
+  }
+  const id = S.id, c = CAT[id];
+  if (S.step === 1) return `<div class="top"><button class="btn ghost" data-act="stop">停</button>${steps}<span class="small">1 我读你跟</span></div>
+    <div class="big">${flashHTML(id, `<p class="hint">你指着读一遍，他跟读。${c.kind === 'L' ? `说音 <b>${esc(c.snd)}</b>，${c.e} ${esc(c.kw)}` : c.mark === '拼' || c.kind === 'W' ? '能拼：一个音一个音拼，再连起来读。' : HEART[c.text] ? '❤ ' + esc(HEART[c.text]) : ''}</p>`)}</div>
+    <div class="acts one"><button class="btn primary" data-act="l-next">他跟读了 →</button></div>`;
+  if (S.step === 2) {
+    const cur = S.seq[S.k];
+    return top(`2 夹心 · 第 ${S.seq.length ? S.round[S.k] : 0} 轮`, S.k / S.seq.length) +
+      `<div class="big">${flashHTML(cur, S.stuck ? `<p class="hint">你说：<b>${esc(CAT[cur].text)}</b>，他跟读。</p>` : '')}</div>
+      <div class="acts">${S.stuck ? '<button class="btn primary" data-act="l-go" style="grid-column:1/-1">跟读了 →</button>' : '<button class="btn bad" data-act="l-stuck">卡住了（超过 3 秒）</button><button class="btn good" data-act="l-go">✓ 读对了</button>'}</div>`;
+  }
+  if (S.step === 3) return `<div class="top"><button class="btn ghost" data-act="stop">停</button>${steps}<span class="small">3 说出来</span></div>
+    <div class="big">${flashHTML(id, `<p class="hint">让他${sayTask(c)}。<br>说不出来你先说一句，他换一个东西再说。</p><p class="hint">例：${esc(exampleSentence(c))}</p>`)}</div>
+    <div class="acts one"><button class="btn primary" data-act="l-next">他说了一句 →</button></div>`;
+  if (S.step === 4) return `<div class="top"><button class="btn ghost" data-act="stop">停</button>${steps}<span class="small">4 用出来</span></div>
+    <div class="big">${flashHTML(id, `<p class="hint">今天找机会用一次：<b>${esc(USE[c.text] || (c.kind === 'L' ? `找一个用 ${c.snd} 开头的东西` : `读书时找到 ${c.text}，让他指给你看`))}</b></p>`)}</div>
+    <div class="acts one"><button class="btn primary" data-act="l-next">记住了 →</button></div>`;
+  if (S.step === 5) {
+    const d = state.daily[dstr(today())] || {};
+    return `<div class="big"><div class="flash sm" style="--c:var(--b1)">${esc(c.text)}</div><p class="hint"><b>${esc(c.text)}</b> 进了 1 号盒，明天早上复习。${S.stuckNew ? `夹心时新词卡住了 ${S.stuckNew} 次，明天多留意。` : ''}</p></div>
+      <div class="acts ${(d.nw || 0) >= 2 || counts()['1'] >= 10 ? 'one' : ''}">${(d.nw || 0) >= 2 || counts()['1'] >= 10 ? '' : '<button class="btn" data-act="l-again">再学一个</button>'}<button class="btn primary" data-act="close-stage">结束（在读对时停）</button></div>`;
+  }
+}
+function pickNew(id) {
+  const known = knownPool(CAT[id].kind);
+  if (known.length < 2) {
+    $('#stage').innerHTML = `<div class="big"><p class="hint"><b>会的卡还太少。</b>夹心法要至少 2 张 3 号盒以上的卡。先去「卡盒 → 待学 → 分拣」，把他已经会的放进盒子。</p></div><div class="acts one"><button class="btn primary" data-act="close-stage">好</button></div>`;
+    return;
+  }
+  const seq = [], round = [];
+  for (let r = 1; r <= known.length; r++) { seq.push(id); round.push(r); for (let j = 0; j < r; j++) { seq.push(known[j]); round.push(r); } }
+  Object.assign(S, { id, step: 1, seq, round, k: 0, stuck: false, stuckNew: 0 });
+  drawStage();
+}
+function drawStage() {
+  if (!S) return;
+  $('#stage').innerHTML = S.mode === 'review' ? drawReview() : S.mode === 'sort' ? drawSort() : drawLearn();
+  const lq = $('#lq');
+  if (lq) { lq.addEventListener('input', () => { S.q = lq.value; const pos = lq.selectionStart; drawStage(); const n = $('#lq'); n.focus(); n.setSelectionRange(pos, pos); }); }
+}
+
+// ---------- actions ----------
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const a = el.dataset.act, id = el.dataset.id, b = el.dataset.b, t = dstr(today());
+  switch (a) {
+    case 'review': startReview(dueList(dueBoxes(today())), '今天'); break;
+    case 'reviewbox': startReview(dueList([boxTab], true), '补复习'); break;
+    case 'learn': startLearn(); break;
+    case 'starter': DATA.school.forEach(x => { if (!state.cards['S:' + x.w]) setCard('S:' + x.w, { b: String(x.b) }); }); persist(); render(); break;
+    case 'bk-copy': {
+      const txt = JSON.stringify(state), ta = $('#bk'); ta.value = txt;
+      const ok = () => { $('#bkmsg').textContent = '已复制。粘贴到备忘录或发给自己保存。'; };
+      try { navigator.clipboard.writeText(txt).then(ok, () => { ta.focus(); ta.select(); $('#bkmsg').textContent = '没能自动复制：备份已选中，长按复制。'; }); } catch (er) { ta.focus(); ta.select(); }
+      break;
+    }
+    case 'bk-load': {
+      const raw = $('#bk').value.trim(); let obj = null;
+      try { obj = JSON.parse(raw); } catch (er) {}
+      if (!obj || typeof obj.cards !== 'object') { $('#bkmsg').textContent = '这段文字不是卡盒备份。先在另一台设备按「复制备份」，再整段粘贴过来。'; break; }
+      if (el.dataset.sure !== '1') { el.dataset.sure = '1'; el.textContent = '确定：用备份替换这台设备上的记录'; $('#bkmsg').textContent = `备份里有 ${Object.keys(obj.cards).length} 张卡的记录、${(obj.timer || []).length} 条计时。再按一次确认。`; break; }
+      state = normalize(obj); buildCatalog(); persist(); render(); break;
+    }
+    case 'gobox': view = 'boxes'; boxTab = b; render(); break;
+    case 'tab': boxTab = b; render(); break;
+    case 'card': openCard(id); break;
+    case 'close': closeSheet(); break;
+    case 'move': setCard(id, { b, d: t }); persist(); openCard(id); break;
+    case 'lv': { const s = st(id), k = el.dataset.k; setCard(id, { [k]: !s[k] }); persist(); openCard(id); break; }
+    case 'sort': startSort(Object.keys(CAT).filter(x => boxOf(x) === 'q' && CAT[x].src.includes(srcFilter))); break;
+    case 'add': {
+      const inp = $('#neww'), w = inp.value.trim().replace(/\s+/g, ' ');
+      if (!w) { $('#addmsg').textContent = '先输入一个词。'; break; }
+      let cid = 'S:' + w;
+      if (!CAT[cid]) { state.custom.push({ id: cid, w }); buildCatalog(); }
+      setCard(cid, { b, d: t }); persist();
+      boxTab = b; render(); $('#addmsg').textContent = `${w} 放进了${BOXNAME[b]}。`; break;
+    }
+    case 'stop': S.mode === 'learn' ? closeStage() : finish(); break;
+    case 'close-stage': closeStage(); break;
+    case 'peek': S.peek = true; drawStage(); break;
+    case 'yes': reviewAnswer(true); break;
+    case 'no': reviewAnswer(false); break;
+    case 'next': nextCard(); break;
+    case 'mk': S.m[el.dataset.k] = !S.m[el.dataset.k]; drawStage(); break;
+    case 'master': setCard(S.ids[S.i], { b: 'm', s: true, u: true, d: t }); persist(); S.lastOk = true; nextCard(); break;
+    case 'stay': setCard(S.ids[S.i], { b: '5', d: t, s: S.m.s, u: S.m.u }); persist(); S.lastOk = true; nextCard(); break;
+    case 's-q': case 's-2': case 's-4': {
+      const sid = S.ids[S.i];
+      if (a !== 's-q') { setCard(sid, { b: a === 's-2' ? '2' : '4', d: t }); persist(); }
+      S.i++; if (S.i >= S.ids.length) finish(); else drawStage(); break;
+    }
+    case 'pickw': pickNew(id); break;
+    case 'l-next':
+      if (S.step === 4) { setCard(S.id, { b: '1', d: t, t: true }); logDay('nw'); persist(); }
+      S.step++; drawStage(); break;
+    case 'l-stuck': S.stuck = true; if (S.seq[S.k] === S.id) S.stuckNew++; drawStage(); break;
+    case 'l-go': S.stuck = false; S.k++; if (S.k >= S.seq.length) S.step = 3; drawStage(); break;
+    case 'l-again': S = { mode: 'learn', step: 0, q: '' }; drawStage(); break;
+    case 'tgo':
+      if (tRun) { tElapsed += performance.now() - tStart; tRun = false; cancelAnimationFrame(tRAF); }
+      else { tStart = performance.now(); tRun = true; lastSaved = null; }
+      render(); break;
+    case 'treset': tRun = false; tElapsed = 0; cancelAnimationFrame(tRAF); lastSaved = null; render(); break;
+    case 'tsave': {
+      const label = ($('#tlabel').value || '流利度表').trim(), sec = Math.round(curSec());
+      const prev = state.timer.filter(r => r.label === label).map(r => r.sec), best = prev.length ? Math.min(...prev) : null;
+      state.timer.push({ d: t, sec, label }); if (state.timer.length > 300) state.timer.shift(); persist();
+      lastSaved = best == null ? `第一次记录：${fmt(sec)}` : sec < best ? `破纪录！比之前最好快了 ${best - sec} 秒 🎉` : `${fmt(sec)}，最好成绩是 ${fmt(best)}，明天再试`;
+      tElapsed = 0; render(); break;
+    }
+  }
+});
+document.addEventListener('change', e => { if (e.target.id === 'src') { srcFilter = e.target.value; render(); } });
+document.addEventListener('keydown', e => {
+  if (e.target.id === 'neww' && e.key === 'Enter') { e.preventDefault(); document.querySelector('[data-act="add"][data-b="1"]').click(); }
+  if (e.key === 'Escape') { if (!$('#sheet').hidden) closeSheet(); }
+});
+render();
+})();
+</script>
