@@ -95,6 +95,7 @@ p { margin: 0; }
 .stage .acts.one { grid-template-columns: 1fr; }
 .stage .acts .btn { padding: 22px 12px; font-size: 20px; }
 .parent { font-size: 14px; color: var(--muted); text-align: center; }
+.say { font-size: 16px; padding: 6px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); font-weight: 500; }
 .tag { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
 .checks { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 560px; }
 .check { display: flex; gap: 12px; align-items: center; text-align: left; padding: 14px 16px; border-radius: 14px; background: var(--surface); border: 2px solid var(--line); font-size: 17px; }
@@ -148,6 +149,27 @@ const SENT = { my: 'This is my LEGO.', am: 'I am Luca.', it: 'I did it!', in: 'T
 const USE = { my: '拿起他的东西说 "my ___"（my cup, my shoe）', you: '捉迷藏时说 "I see you!"', me: '让他说 "Look at me!"', I: '让他说 "I can ___"', like: '吃饭时说 "I like ___"' };
 const HEART = {};
 DATA.hearts.forEach(h => h.w.split(' / ').forEach(w => HEART[w] = h.t));
+
+// ---------- read aloud (the device's own US English voice) ----------
+const CAN_SAY = 'speechSynthesis' in window;
+let VOICE = null;
+function pickVoice() {
+  try {
+    const vs = speechSynthesis.getVoices();
+    VOICE = vs.find(v => /^en[-_]US/i.test(v.lang) && /Samantha|Google US|Nicky|Aaron|Ava|Allison/i.test(v.name))
+      || vs.find(v => /^en[-_]US/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
+  } catch (e) {}
+}
+if (CAN_SAY) { pickVoice(); try { speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {} }
+function say(text) {
+  if (!CAN_SAY || !text) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US'; if (VOICE) u.voice = VOICE; u.rate = 0.8;
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
 
 // ---------- helpers ----------
 const $ = s => document.querySelector(s);
@@ -360,6 +382,7 @@ function vHelp() {
     <ol><li><b>早上 5 分钟：</b>「今天」→ 开始复习。只出现今天该复习的盒子。</li>
     <li><b>放学后：</b>回顾昨天的新卡 → 学这周「家里先学」的内容 → 「学一个新词」（夹心法）。</li>
     <li>在他读对的时候结束，别等他烦了才停。</li></ol>
+    <p class="small">🔊 按钮用 iPad 自带的美式英语读单词和例句；字母卡读关键词（apple），你再强调开头的音 /ă/。复习时先让他自己读，读不出来再点「提示」。</p>
   </section>
   <section class="panel help">
     <h2>复习时你按哪个键</h2>
@@ -396,6 +419,7 @@ function openCard(id) {
     <div class="row" style="justify-content:space-between"><span class="small">${c.src.map(x => SRCNAME[x]).join(' · ')}${c.mark ? ' · ' + (c.mark === '❤' ? '心形词' : '能拼') : ''}</span><button class="btn ghost" data-act="close">关闭</button></div>
     <div style="text-align:center"><span class="flash sm" style="--c:${COLOR[b]};display:inline-block">${esc(c.text)}</span></div>
     ${cardHint(c)}
+    <div class="row" style="justify-content:center">${sayBtn(id)}${sayBtn(id, 'sent')}</div>
     <h2>放进哪一盒</h2>
     <div class="movers">${BOXES.map(x => `<button style="--c:${COLOR[x]}" class="${x === b ? 'on' : ''}" data-act="move" data-id="${esc(id)}" data-b="${x}" ${x === 'm' && !(s.s && s.u) ? 'disabled title="要先过「说出来」和「用出来」"' : ''}>${x === 'm' ? '✓' : x === 'q' ? '?' : x}</button>`).join('')}</div>
     <p class="small">「已掌握」要先勾上「说出来」和「用出来」。</p>
@@ -403,6 +427,12 @@ function openCard(id) {
     <div class="checks">${lv.map(([k, n, d, on]) => `<button class="check ${on ? 'on' : ''}" ${k === 'ok' ? 'disabled' : `data-act="lv" data-id="${esc(id)}" data-k="${k}"`}><span class="bx">${on ? '✓' : ''}</span><span><b>${n}</b><br><span class="small">${d}${k === 'ok' ? '（4 号盒以上自动算）' : ''}</span></span></button>`).join('')}</div>
   </div>`;
   $('#sheet').hidden = false;
+}
+function sayBtn(id, what) {
+  const c = CAT[id];
+  if (!CAN_SAY || !c || (what === 'sent' && c.kind === 'L')) return '';
+  const label = what === 'sent' ? '🔊 读例句' : c.kind === 'L' ? `🔊 ${esc(c.kw)}` : '🔊 读一遍';
+  return `<button class="say" data-act="say" data-id="${esc(id)}" data-w="${what || 'word'}" aria-label="读出来">${label}</button>`;
 }
 function cardHint(c) {
   if (c.kind === 'L') return `<p class="hint" style="margin:0 auto">${c.e} <b>${esc(c.kw)}</b> ${esc(c.snd)}　说音，不说字母名</p>`;
@@ -432,10 +462,10 @@ function drawReview() {
   const id = S.ids[S.i], c = CAT[id], b = boxOf(id);
   let body, acts;
   if (S.phase === 'card') {
-    body = flashHTML(id, `<p class="parent">${BOXNAME[b]} · ${S.title}${S.peek ? '' : ' · <button class="tag" data-act="peek">提示</button>'}</p>${S.peek ? cardHint(c) : ''}`);
+    body = flashHTML(id, `<p class="parent">${BOXNAME[b]} · ${S.title}${S.peek ? '' : ' · <button class="tag" data-act="peek">提示</button>'}</p>${S.peek ? cardHint(c) + '<div class="row" style="justify-content:center">' + sayBtn(id) + '</div>' : ''}`);
     acts = `<div class="acts"><button class="btn bad" data-act="no">还不会</button><button class="btn good" data-act="yes">✓ 读对了</button></div>`;
   } else if (S.phase === 'redo') {
-    body = flashHTML(id, `<p class="hint">你读：<b>${esc(c.text)}</b>，他跟读一遍。卡回 1 号盒，明天再见。</p>${cardHint(c)}`);
+    body = flashHTML(id, `<p class="hint">你读：<b>${esc(c.text)}</b>，他跟读一遍。卡回 1 号盒，明天再见。</p>${cardHint(c)}<div class="row" style="justify-content:center">${sayBtn(id)}</div>`);
     acts = `<div class="acts one"><button class="btn primary" data-act="next">跟读了，下一张</button></div>`;
   } else if (S.phase === 'master') {
     const m = S.m;
@@ -443,6 +473,7 @@ function drawReview() {
       <p class="hint"><b>5 号盒读对了！</b>进「已掌握」还要过两关：</p>
       <div class="checks">
         <button class="check ${m.s ? 'on' : ''}" data-act="mk" data-k="s"><span class="bx">${m.s ? '✓' : ''}</span><span><b>说出来</b>　他自己${sayTask(c)}<br><span class="small">例：${esc(exampleSentence(c))}</span></span></button>
+        <div class="row" style="justify-content:center">${sayBtn(id, 'sent')}</div>
         <button class="check ${m.u ? 'on' : ''}" data-act="mk" data-k="u"><span class="bx">${m.u ? '✓' : ''}</span><span><b>用出来</b>　在生活或书里自己用上、读出来过</span></button>
       </div>`;
     acts = `<div class="acts"><button class="btn" data-act="stay">还没有 → 留在 5 号盒</button><button class="btn good" data-act="master" ${m.s && m.u ? '' : 'disabled'}>都做到了 → ✓ 已掌握</button></div>`;
@@ -515,16 +546,16 @@ function drawLearn() {
   }
   const id = S.id, c = CAT[id];
   if (S.step === 1) return `<div class="top"><button class="btn ghost" data-act="stop">停</button>${steps}<span class="small">1 我读你跟</span></div>
-    <div class="big">${flashHTML(id, `<p class="hint">你指着读一遍，他跟读。${c.kind === 'L' ? `说音 <b>${esc(c.snd)}</b>，${c.e} ${esc(c.kw)}` : c.mark === '拼' || c.kind === 'W' ? '能拼：一个音一个音拼，再连起来读。' : HEART[c.text] ? '❤ ' + esc(HEART[c.text]) : ''}</p>`)}</div>
+    <div class="big">${flashHTML(id, `<p class="hint">你指着读一遍，他跟读。${c.kind === 'L' ? `说音 <b>${esc(c.snd)}</b>，${c.e} ${esc(c.kw)}` : c.mark === '拼' || c.kind === 'W' ? '能拼：一个音一个音拼，再连起来读。' : HEART[c.text] ? '❤ ' + esc(HEART[c.text]) : ''}</p><div class="row" style="justify-content:center">${sayBtn(id)}</div>`)}</div>
     <div class="acts one"><button class="btn primary" data-act="l-next">他跟读了 →</button></div>`;
   if (S.step === 2) {
     const cur = S.seq[S.k];
     return top(`2 夹心 · 第 ${S.seq.length ? S.round[S.k] : 0} 轮`, S.k / S.seq.length) +
-      `<div class="big">${flashHTML(cur, S.stuck ? `<p class="hint">你说：<b>${esc(CAT[cur].text)}</b>，他跟读。</p>` : '')}</div>
+      `<div class="big">${flashHTML(cur, S.stuck ? `<p class="hint">你说：<b>${esc(CAT[cur].text)}</b>，他跟读。</p><div class="row" style="justify-content:center">${sayBtn(cur)}</div>` : '')}</div>
       <div class="acts">${S.stuck ? '<button class="btn primary" data-act="l-go" style="grid-column:1/-1">跟读了 →</button>' : '<button class="btn bad" data-act="l-stuck">卡住了（超过 3 秒）</button><button class="btn good" data-act="l-go">✓ 读对了</button>'}</div>`;
   }
   if (S.step === 3) return `<div class="top"><button class="btn ghost" data-act="stop">停</button>${steps}<span class="small">3 说出来</span></div>
-    <div class="big">${flashHTML(id, `<p class="hint">让他${sayTask(c)}。<br>说不出来你先说一句，他换一个东西再说。</p><p class="hint">例：${esc(exampleSentence(c))}</p>`)}</div>
+    <div class="big">${flashHTML(id, `<p class="hint">让他${sayTask(c)}。<br>说不出来你先说一句，他换一个东西再说。</p><p class="hint">例：${esc(exampleSentence(c))}</p><div class="row" style="justify-content:center">${sayBtn(id, 'sent')}</div>`)}</div>
     <div class="acts one"><button class="btn primary" data-act="l-next">他说了一句 →</button></div>`;
   if (S.step === 4) return `<div class="top"><button class="btn ghost" data-act="stop">停</button>${steps}<span class="small">4 用出来</span></div>
     <div class="big">${flashHTML(id, `<p class="hint">今天找机会用一次：<b>${esc(USE[c.text] || (c.kind === 'L' ? `找一个用 ${c.snd} 开头的东西` : `读书时找到 ${c.text}，让他指给你看`))}</b></p>`)}</div>
@@ -593,6 +624,7 @@ document.addEventListener('click', e => {
     case 'stop': S.mode === 'learn' ? closeStage() : finish(); break;
     case 'close-stage': closeStage(); break;
     case 'peek': S.peek = true; drawStage(); break;
+    case 'say': { const c = CAT[id]; say(el.dataset.w === 'sent' ? exampleSentence(c) : c.kind === 'L' ? c.kw : c.text); break; }
     case 'yes': reviewAnswer(true); break;
     case 'no': reviewAnswer(false); break;
     case 'next': nextCard(); break;
