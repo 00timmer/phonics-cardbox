@@ -317,6 +317,7 @@ function vToday() {
     ${weekend ? '' : due.length
       ? `<button class="btn primary wide" data-act="review">开始复习（${due.length} 张${PAPER ? '纸卡' : ''}）</button>`
       : Object.keys(state.cards).length ? `<p>今天该复习的都复习完了 ✓ ${day.r ? `读了 ${day.r} 张，读对 ${day.ok} 张。` : ''}</p>` : '<p class="small">卡盒还是空的，先在下面「卡盒现在」里开始。</p>'}
+    ${Object.keys(state.cards).length && (weekend || !due.length) ? `<button class="btn ${weekend ? 'primary' : ''} wide" data-act="practice">再练一遍${PAPER ? '（纸卡）' : ''}　<span class="small">只练习，不换盒子</span></button>` : ''}
   </section>
   <section class="panel">
     <h2>放学后 · 学新卡（夹心法）</h2>
@@ -427,6 +428,12 @@ function vHelp() {
     <div class="grid2"><button class="btn" data-act="bk-copy">复制备份</button><button class="btn ghost" data-act="bk-load">粘贴的备份 → 恢复</button></div>
     <p class="small" id="bkmsg"></p>
   </section>
+  <section class="panel">
+    <h2>重新开始</h2>
+    <p class="small">试用完想从头来，或者卡盒和纸卡对不上了，可以清空卡盒记录。</p>
+    <button class="btn ghost wide" data-act="reset">清空卡盒记录，重新开始</button>
+    <p class="small" id="rsmsg"></p>
+  </section>
   <section class="panel"><p class="small">完整计划：<a href="${DOC_URL}" target="_blank" rel="noopener">Luca 的一年 Phonics 学习计划</a>。在 claude.ai 打开的版本会在 iPad 和手机之间自动同步；手机浏览器版和安卓 App 的记录只存在本机。</p></section>`;
 }
 
@@ -475,9 +482,9 @@ function flashHTML(id, extra = '') {
 function top(label, frac) { return `<div class="top"><button class="btn ghost" data-act="stop">停</button><div class="prog"><i style="width:${Math.round(frac * 100)}%"></i></div><span class="small">${label}</span></div>`; }
 
 // review
-function startReview(ids, title) {
+function startReview(ids, title, practice) {
   if (!ids.length) return;
-  S = { mode: 'review', ids, i: 0, ok: 0, bad: 0, phase: 'card', title, paper: PAPER, done: {}, sel: null, msg: null, orig: {} };
+  S = { mode: 'review', ids, i: 0, ok: 0, bad: 0, phase: 'card', title, practice: !!practice, paper: PAPER, done: {}, sel: null, msg: null, orig: {} };
   ids.forEach(id => S.orig[id] = boxOf(id));
   openStage(); drawStage();
 }
@@ -486,7 +493,7 @@ const byText = (a, b) => CAT[a].text.toLowerCase().localeCompare(CAT[b].text.toL
 function placeMsg() {
   const m = S.msg; if (!m) return '';
   const c = CAT[m.id], dest = m.dest;
-  const where = dest === 'q' ? '留在待学袋' : dest === 'm' ? '放进 ✓ 已掌握袋' : dest === '1' && m.bad ? '放回 1 号盒' : `放进 ${BOXNAME[dest]}`;
+  const where = S.practice ? `放回 ${BOXNAME[dest]}` : dest === 'q' ? '留在待学袋' : dest === 'm' ? '放进 ✓ 已掌握袋' : dest === '1' && m.bad ? '放回 1 号盒' : `放进 ${BOXNAME[dest]}`;
   return `<div class="place" style="--c:${COLOR[dest]}">${esc(c.text)} → ${where}${m.bad ? `<br><span class="small">你读一遍，他跟读。</span> ${sayBtn(m.id)}` : ''}</div>`;
 }
 function paperGrid(act) {
@@ -515,7 +522,7 @@ function drawReview() {
     body = flashHTML(id, `<p class="parent">${BOXNAME[b]} · ${S.title}${S.peek ? '' : ' · <button class="tag" data-act="peek">提示</button>'}</p>${S.peek ? cardHint(c) + '<div class="row" style="justify-content:center">' + sayBtn(id) + '</div>' : ''}`);
     acts = `<div class="acts"><button class="btn bad" data-act="no">还不会</button><button class="btn good" data-act="yes">✓ 读对了</button></div>`;
   } else if (S.phase === 'redo') {
-    body = flashHTML(id, `<p class="hint">你读：<b>${esc(c.text)}</b>，他跟读一遍。卡回 1 号盒，明天再见。</p>${cardHint(c)}<div class="row" style="justify-content:center">${sayBtn(id)}</div>`);
+    body = flashHTML(id, `<p class="hint">你读：<b>${esc(c.text)}</b>，他跟读一遍。${S.practice ? '练习不换盒子。' : '卡回 1 号盒，明天再见。'}</p>${cardHint(c)}<div class="row" style="justify-content:center">${sayBtn(id)}</div>`);
     acts = `<div class="acts one"><button class="btn primary" data-act="next">跟读了，下一张</button></div>`;
   } else if (S.phase === 'master') {
     const m = S.m;
@@ -533,6 +540,12 @@ function drawReview() {
 function reviewAnswer(ok) {
   const id = curId(), b = boxOf(id), t = dstr(today());
   if (!id) return;
+  if (S.practice) {
+    if (ok) { S.ok++; S.lastOk = true; return S.paper ? paperDone(id, b) : nextCard(); }
+    S.bad++; S.lastOk = false;
+    if (S.paper) return paperDone(id, b, true);
+    S.phase = 'redo'; return drawStage();
+  }
   logDay('r');
   if (ok) {
     logDay('ok'); S.ok++;
@@ -551,7 +564,7 @@ function finish() {
   const r = S.mode === 'review' ? `读了 ${S.i} 张，读对 ${S.ok} 张。` : S.mode === 'sort' ? `分拣了 ${S.i} 张。` : '';
   const last = S.paper ? placeMsg() : '';
   $('#stage').innerHTML = `${last}<div class="big"><div class="flash sm" style="--c:var(--b4)">✓</div><p class="hint"><b>做完了！</b>${r}</p>
-    ${S.mode === 'review' && S.bad ? '<p class="hint">读错的卡回到了 1 号盒，明天早上再见。</p>' : ''}</div>
+    ${S.mode === 'review' && S.bad ? `<p class="hint">${S.practice ? '这次是练习，盒子都没变。读错的词明天早上复习时再看。' : '读错的卡回到了 1 号盒，明天早上再见。'}</p>` : ''}</div>
     <div class="acts one"><button class="btn primary" data-act="close-stage">回到今天</button></div>`;
 }
 
@@ -658,6 +671,11 @@ document.addEventListener('click', e => {
   const a = el.dataset.act, id = el.dataset.id, b = el.dataset.b, t = dstr(today());
   switch (a) {
     case 'review': startReview(dueList(dueBoxes(today())), '今天'); break;
+    case 'practice': { const bx = dueBoxes(today()); let ids = shuffle(Object.keys(state.cards).filter(id => CAT[id] && st(id).d === t && !['q', 'm'].includes(st(id).b))); if (!ids.length) ids = dueList(bx.length ? bx : ['1', '2'], true); if (!ids.length) ids = dueList(['1', '2', '3'], true); startReview(ids, '练习', true); break; }
+    case 'reset': {
+      if (el.dataset.sure !== '1') { el.dataset.sure = '1'; el.textContent = '确定：清空卡盒记录（再按一次）'; $('#rsmsg').textContent = '所有卡回到待学袋，今天的复习次数清零。计时记录保留。清空后可以在「今天」重新按「用学校词表的起点开始」。'; break; }
+      state.cards = {}; state.daily = {}; persist(); view = 'today'; render(); break;
+    }
     case 'reviewbox': startReview(dueList([boxTab], true), '补复习'); break;
     case 'learn': startLearn(); break;
     case 'starter': DATA.school.forEach(x => { if (!state.cards['S:' + x.w]) setCard('S:' + x.w, { b: String(x.b) }); }); persist(); render(); break;
