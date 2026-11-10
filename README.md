@@ -14,4 +14,4 @@ cd ~/Downloads/apps/phonics && python3 tools/build_app.py
 cd ~/Downloads/apps/phonics-web && git add -A && git commit -m "Update" && git push
 ```
 
-`build_app.py` 同时生成 claude.ai 版（`phonics/Luca-卡盒.html`）、这个网页版和安卓 APK 的 `www/index.html`。
+`build_app.py` 同时生成 claude.ai 版（`phonics/Luca-卡盒.html`）和这个网页版。用法：iPad Safari 添加到主屏幕；投电视用 AirPlay 屏幕镜像。
