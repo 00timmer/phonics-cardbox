@@ -96,6 +96,11 @@ p { margin: 0; }
 .stage .acts .btn { padding: 22px 12px; font-size: 20px; }
 .parent { font-size: 14px; color: var(--muted); text-align: center; }
 .say { font-size: 16px; padding: 6px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); font-weight: 500; }
+.pword { font-family: var(--card); font-size: 44px; line-height: 1.2; padding: 4px 20px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); border-bottom: 5px solid var(--c, var(--line)); display: inline-block; }
+.wc.sel { outline: 3px solid var(--accent); outline-offset: 2px; }
+.place { padding: 12px 16px; border-radius: 14px; background: color-mix(in srgb, var(--c) 18%, var(--surface)); border: 2px solid var(--c); font-size: 19px; font-weight: 700; text-align: center; max-width: 900px; width: 100%; margin: 0 auto; }
+.place .small { font-weight: 400; }
+.scroll { overflow: auto; flex: 1; max-width: 900px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .tag { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
 .checks { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 560px; }
 .check { display: flex; gap: 12px; align-items: center; text-align: left; padding: 14px 16px; border-radius: 14px; background: var(--surface); border: 2px solid var(--line); font-size: 17px; }
@@ -262,6 +267,8 @@ function renderSync() {
 
 // ---------- views ----------
 let view = 'today';
+let PAPER = false;
+try { PAPER = localStorage.getItem(LKEY + ':paper') === '1'; } catch (e) {}
 try { view = localStorage.getItem(LKEY + ':view') || 'today'; } catch (e) {}
 let boxTab = '1', srcFilter = '学校';
 const TABS = [['today', '☀️', '今天'], ['boxes', '🗂️', '卡盒'], ['timer', '⏱️', '计时'], ['help', '📖', '说明']];
@@ -302,10 +309,13 @@ function vToday() {
     ${consolidation ? '<p class="small">巩固周：卡盒复习照常，不加新卡，放学后补练他卡住的词。</p>' : ''}
   </section>
   <section class="panel">
+    <button class="check ${PAPER ? 'on' : ''}" data-act="paper" style="max-width:none"><span class="bx">${PAPER ? '✓' : ''}</span><span><b>纸卡模式</b>　孩子看纸卡，屏幕只给你看<br><span class="small">你举纸卡，在手机上点同一个词、按读对或还不会，App 告诉你放进哪一盒</span></span></button>
+  </section>
+  <section class="panel">
     <h2>早上 5 分钟 · 复习卡盒</h2>
     ${weekend ? '<p>周末不用复习卡盒，亲子共读绘本就好。</p>' : `<div class="row">${chips}</div>`}
     ${weekend ? '' : due.length
-      ? `<button class="btn primary wide" data-act="review">开始复习（${due.length} 张）</button>`
+      ? `<button class="btn primary wide" data-act="review">开始复习（${due.length} 张${PAPER ? '纸卡' : ''}）</button>`
       : Object.keys(state.cards).length ? `<p>今天该复习的都复习完了 ✓ ${day.r ? `读了 ${day.r} 张，读对 ${day.ok} 张。` : ''}</p>` : '<p class="small">卡盒还是空的，先在下面「卡盒现在」里开始。</p>'}
   </section>
   <section class="panel">
@@ -382,6 +392,7 @@ function vHelp() {
     <ol><li><b>早上 5 分钟：</b>「今天」→ 开始复习。只出现今天该复习的盒子。</li>
     <li><b>放学后：</b>回顾昨天的新卡 → 学这周「家里先学」的内容 → 「学一个新词」（夹心法）。</li>
     <li>在他读对的时候结束，别等他烦了才停。</li></ol>
+    <p class="small">不想让他多看屏幕：在「今天」打开「纸卡模式」。他看纸卡，屏幕只给你看，App 照样算复习时间、告诉你卡放哪一盒。</p>
     <p class="small">🔊 按钮用 iPad 自带的美式英语读单词和例句；字母卡读关键词（apple），你再强调开头的音 /ă/。复习时先让他自己读，读不出来再点「提示」。</p>
   </section>
   <section class="panel help">
@@ -450,16 +461,47 @@ function openStage() { $('#stage').hidden = false; document.body.style.overflow 
 function closeStage() { S = null; $('#stage').hidden = true; document.body.style.overflow = ''; render(); }
 function flashHTML(id, extra = '') {
   const c = CAT[id];
+  if (PAPER) return `<p class="parent">举起这张纸卡（在${BOXNAME[boxOf(id)]}）</p><div class="pword" style="--c:${COLOR[boxOf(id)]}">${esc(c.text)}</div>${extra}`;
   return `<div class="flash ${c.text.length > 5 ? 'sm' : ''}" style="--c:${COLOR[boxOf(id)]}">${esc(c.text)}</div>${extra}`;
 }
 function top(label, frac) { return `<div class="top"><button class="btn ghost" data-act="stop">停</button><div class="prog"><i style="width:${Math.round(frac * 100)}%"></i></div><span class="small">${label}</span></div>`; }
 
 // review
-function startReview(ids, title) { if (!ids.length) return; S = { mode: 'review', ids, i: 0, ok: 0, bad: 0, phase: 'card', title }; openStage(); drawStage(); }
+function startReview(ids, title) {
+  if (!ids.length) return;
+  S = { mode: 'review', ids, i: 0, ok: 0, bad: 0, phase: 'card', title, paper: PAPER, done: {}, sel: null, msg: null, orig: {} };
+  ids.forEach(id => S.orig[id] = boxOf(id));
+  openStage(); drawStage();
+}
+const curId = () => S.paper ? S.sel : S.ids[S.i];
+const byText = (a, b) => CAT[a].text.toLowerCase().localeCompare(CAT[b].text.toLowerCase());
+function placeMsg() {
+  const m = S.msg; if (!m) return '';
+  const c = CAT[m.id], dest = m.dest;
+  const where = dest === 'q' ? '留在待学袋' : dest === 'm' ? '放进 ✓ 已掌握袋' : dest === '1' && m.bad ? '放回 1 号盒' : `放进 ${BOXNAME[dest]}`;
+  return `<div class="place" style="--c:${COLOR[dest]}">${esc(c.text)} → ${where}${m.bad ? `<br><span class="small">你读一遍，他跟读。</span> ${sayBtn(m.id)}` : ''}</div>`;
+}
+function paperGrid(act) {
+  const left = S.ids.filter(id => !S.done[id]);
+  const groups = [...new Set(left.map(id => S.orig[id]))].sort((a, b) => BOXES.indexOf(a) - BOXES.indexOf(b));
+  return groups.map(b => { const l = left.filter(id => S.orig[id] === b).sort(byText);
+    return `<div><h2 style="margin-bottom:8px">${BOXNAME[b]}（${l.length}）</h2><div class="cards">${l.map(id => `<button class="wc ${S.sel === id ? 'sel' : ''}" style="--c:${COLOR[b]}" data-act="${act}" data-id="${esc(id)}">${esc(CAT[id].text)}</button>`).join('')}</div></div>`; }).join('');
+}
+function paperDone(id, dest, bad) { S.done[id] = 1; S.i = Object.keys(S.done).length; S.msg = { id, dest, bad }; S.sel = null; S.phase = 'card'; if (S.i >= S.ids.length) return finish(); drawStage(); }
+function drawReviewPaper() {
+  const n = S.ids.length, d = Object.keys(S.done).length;
+  const sel = S.sel;
+  return top(`${d} / ${n}`, d / n) + placeMsg() +
+    `<div class="scroll"><p class="small">从信封里拿出一张纸卡举给他看，再在下面点同一个词。</p>${paperGrid('psel')}</div>` +
+    (sel ? `<div class="place" style="--c:${COLOR[boxOf(sel)]};font-weight:400"><span class="pword" style="--c:${COLOR[boxOf(sel)]};font-size:34px">${esc(CAT[sel].text)}</span> ${S.peek ? sayBtn(sel) : '<button class="tag" data-act="peek">提示</button>'}${S.peek ? cardHint(CAT[sel]) : ''}</div>
+      <div class="acts"><button class="btn bad" data-act="no">还不会</button><button class="btn good" data-act="yes">✓ 读对了</button></div>`
+    : `<p class="note">${S.lastOk ? '刚读对一张，现在停也很好。' : '点一个词开始'}</p>`);
+}
 function exampleSentence(c) { if (c.kind === 'L') return `${c.kw}… 再说一个 ${c.snd} 开头的词`; return SENT[c.text] || c.sent || `说一句带 “${c.text}” 的话`; }
 function sayTask(c) { return c.kind === 'L' ? `说出 2 个 <b>${esc(c.snd)}</b> 开头的词` : `用 <b>${esc(c.text)}</b> 说一句自己的话`; }
 function drawReview() {
-  const id = S.ids[S.i], c = CAT[id], b = boxOf(id);
+  if (S.paper && S.phase !== 'master') return drawReviewPaper();
+  const id = curId(), c = CAT[id], b = boxOf(id);
   let body, acts;
   if (S.phase === 'card') {
     body = flashHTML(id, `<p class="parent">${BOXNAME[b]} · ${S.title}${S.peek ? '' : ' · <button class="tag" data-act="peek">提示</button>'}</p>${S.peek ? cardHint(c) + '<div class="row" style="justify-content:center">' + sayBtn(id) + '</div>' : ''}`);
@@ -469,7 +511,7 @@ function drawReview() {
     acts = `<div class="acts one"><button class="btn primary" data-act="next">跟读了，下一张</button></div>`;
   } else if (S.phase === 'master') {
     const m = S.m;
-    body = `<div class="flash sm" style="--c:var(--bm)">${esc(c.text)}</div>
+    body = `${S.paper ? `<div class="pword" style="--c:var(--bm)">${esc(c.text)}</div>` : `<div class="flash sm" style="--c:var(--bm)">${esc(c.text)}</div>`}
       <p class="hint"><b>5 号盒读对了！</b>进「已掌握」还要过两关：</p>
       <div class="checks">
         <button class="check ${m.s ? 'on' : ''}" data-act="mk" data-k="s"><span class="bx">${m.s ? '✓' : ''}</span><span><b>说出来</b>　他自己${sayTask(c)}<br><span class="small">例：${esc(exampleSentence(c))}</span></span></button>
@@ -481,29 +523,37 @@ function drawReview() {
   return top(`${S.i + 1} / ${S.ids.length}`, S.i / S.ids.length) + `<div class="big">${body}</div>` + acts + (S.phase === 'card' && S.i > 0 && S.lastOk ? `<p class="note">刚读对一张，现在停也很好。</p>` : '');
 }
 function reviewAnswer(ok) {
-  const id = S.ids[S.i], b = boxOf(id), t = dstr(today());
+  const id = curId(), b = boxOf(id), t = dstr(today());
+  if (!id) return;
   logDay('r');
   if (ok) {
     logDay('ok'); S.ok++;
     if (b === '5') { const s = st(id); S.m = { s: !!s.s, u: !!s.u }; S.phase = 'master'; return drawStage(); }
-    setCard(id, { b: b === 'm' ? 'm' : String(Math.min(5, (+b || 0) + 1)), d: t });
-    persist(); S.lastOk = true; return nextCard();
+    const nb = b === 'm' ? 'm' : String(Math.min(5, (+b || 0) + 1));
+    setCard(id, { b: nb, d: t });
+    persist(); S.lastOk = true; return S.paper ? paperDone(id, nb) : nextCard();
   }
   S.bad++; S.lastOk = false;
   setCard(id, { b: '1', d: t }); persist();
+  if (S.paper) return paperDone(id, '1', true);
   S.phase = 'redo'; drawStage();
 }
 function nextCard() { S.i++; S.phase = 'card'; S.peek = false; if (S.i >= S.ids.length) return finish(); drawStage(); }
 function finish() {
   const r = S.mode === 'review' ? `读了 ${S.i} 张，读对 ${S.ok} 张。` : S.mode === 'sort' ? `分拣了 ${S.i} 张。` : '';
-  $('#stage').innerHTML = `<div class="big"><div class="flash sm" style="--c:var(--b4)">✓</div><p class="hint"><b>做完了！</b>${r}</p>
+  const last = S.paper ? placeMsg() : '';
+  $('#stage').innerHTML = `${last}<div class="big"><div class="flash sm" style="--c:var(--b4)">✓</div><p class="hint"><b>做完了！</b>${r}</p>
     ${S.mode === 'review' && S.bad ? '<p class="hint">读错的卡回到了 1 号盒，明天早上再见。</p>' : ''}</div>
     <div class="acts one"><button class="btn primary" data-act="close-stage">回到今天</button></div>`;
 }
 
 // sort
-function startSort(ids) { S = { mode: 'sort', ids: shuffle(ids), i: 0 }; openStage(); drawStage(); }
+function startSort(ids) { S = { mode: 'sort', ids: shuffle(ids), i: 0, paper: PAPER, done: {}, sel: null, msg: null, orig: {} }; ids.forEach(id => S.orig[id] = 'q'); openStage(); drawStage(); }
 function drawSort() {
+  if (S.paper) { const n = S.ids.length, d = Object.keys(S.done).length;
+    return top(`分拣 ${d} / ${n}`, d / n) + placeMsg() + `<div class="scroll"><p class="small">从待学袋里拿一张纸卡举给他看，在下面点同一个词，再按他读得怎么样。</p>${paperGrid('psel')}</div>` +
+      (S.sel ? `<div class="place" style="--c:var(--bq);font-weight:400"><span class="pword" style="--c:var(--bq);font-size:34px">${esc(CAT[S.sel].text)}</span></div>
+        <div class="acts" style="grid-template-columns:1fr 1fr 1fr"><button class="btn" data-act="s-q">不会 → 待学</button><button class="btn" style="background:var(--b2);color:#fff" data-act="s-2">读对但慢 → 2 号盒</button><button class="btn good" data-act="s-4">3 秒内读对 → 4 号盒</button></div>` : '<p class="note">点一个词开始</p>'); }
   const id = S.ids[S.i];
   return top(`分拣 ${S.i + 1} / ${S.ids.length}`, S.i / S.ids.length) +
     `<div class="big">${flashHTML(id, `<p class="parent">他会的直接进盒，不会的留在待学</p>`)}</div>
@@ -545,6 +595,16 @@ function drawLearn() {
       </div>`;
   }
   const id = S.id, c = CAT[id];
+  if (S.step === 'g') {
+    const byBox = {}; S.known.forEach(k => (byBox[boxOf(k)] = byBox[boxOf(k)] || []).push(k));
+    return `<div class="top"><button class="btn ghost" data-act="stop">停</button><span class="small">先拿出这些纸卡</span></div>
+      <div class="scroll">
+        <div class="panel"><h2>新词（在待学袋）</h2><div><span class="pword" style="--c:var(--bq)">${esc(c.text)}</span></div></div>
+        <div class="panel"><h2>会的卡（夹在新词中间用，用完放回原来的盒子）</h2>
+        ${Object.keys(byBox).sort((a, b) => BOXES.indexOf(a) - BOXES.indexOf(b)).map(b => `<div class="row"><span class="chip"><span class="dot" style="background:${COLOR[b]}"></span>${BOXNAME[b]}</span>${byBox[b].map(k => `<span class="wc" style="--c:${COLOR[b]}">${esc(CAT[k].text)}</span>`).join('')}</div>`).join('')}</div>
+      </div>
+      <div class="acts one"><button class="btn primary" data-act="l-gather">拿好了 →</button></div>`;
+  }
   if (S.step === 1) return `<div class="top"><button class="btn ghost" data-act="stop">停</button>${steps}<span class="small">1 我读你跟</span></div>
     <div class="big">${flashHTML(id, `<p class="hint">你指着读一遍，他跟读。${c.kind === 'L' ? `说音 <b>${esc(c.snd)}</b>，${c.e} ${esc(c.kw)}` : c.mark === '拼' || c.kind === 'W' ? '能拼：一个音一个音拼，再连起来读。' : HEART[c.text] ? '❤ ' + esc(HEART[c.text]) : ''}</p><div class="row" style="justify-content:center">${sayBtn(id)}</div>`)}</div>
     <div class="acts one"><button class="btn primary" data-act="l-next">他跟读了 →</button></div>`;
@@ -562,7 +622,7 @@ function drawLearn() {
     <div class="acts one"><button class="btn primary" data-act="l-next">记住了 →</button></div>`;
   if (S.step === 5) {
     const d = state.daily[dstr(today())] || {};
-    return `<div class="big"><div class="flash sm" style="--c:var(--b1)">${esc(c.text)}</div><p class="hint"><b>${esc(c.text)}</b> 进了 1 号盒，明天早上复习。${S.stuckNew ? `夹心时新词卡住了 ${S.stuckNew} 次，明天多留意。` : ''}</p></div>
+    return `<div class="big">${PAPER ? `<div class="pword" style="--c:var(--b1)">${esc(c.text)}</div>` : `<div class="flash sm" style="--c:var(--b1)">${esc(c.text)}</div>`}<p class="hint"><b>${esc(c.text)}</b> 进了 1 号盒，明天早上复习。${PAPER ? '把这张纸卡放进 1 号盒，会的卡放回原来的盒子。' : ''}${S.stuckNew ? `夹心时新词卡住了 ${S.stuckNew} 次，明天多留意。` : ''}</p></div>
       <div class="acts ${(d.nw || 0) >= 2 || counts()['1'] >= 10 ? 'one' : ''}">${(d.nw || 0) >= 2 || counts()['1'] >= 10 ? '' : '<button class="btn" data-act="l-again">再学一个</button>'}<button class="btn primary" data-act="close-stage">结束（在读对时停）</button></div>`;
   }
 }
@@ -574,7 +634,7 @@ function pickNew(id) {
   }
   const seq = [], round = [];
   for (let r = 1; r <= known.length; r++) { seq.push(id); round.push(r); for (let j = 0; j < r; j++) { seq.push(known[j]); round.push(r); } }
-  Object.assign(S, { id, step: 1, seq, round, k: 0, stuck: false, stuckNew: 0 });
+  Object.assign(S, { id, step: PAPER ? 'g' : 1, seq, round, k: 0, stuck: false, stuckNew: 0, known });
   drawStage();
 }
 function drawStage() {
@@ -624,16 +684,21 @@ document.addEventListener('click', e => {
     case 'stop': S.mode === 'learn' ? closeStage() : finish(); break;
     case 'close-stage': closeStage(); break;
     case 'peek': S.peek = true; drawStage(); break;
+    case 'psel': S.sel = id; S.peek = false; drawStage(); break;
+    case 'paper': PAPER = !PAPER; try { localStorage.setItem(LKEY + ':paper', PAPER ? '1' : '0'); } catch (er) {} render(); break;
+    case 'l-gather': S.step = 1; drawStage(); break;
     case 'say': { const c = CAT[id]; say(el.dataset.w === 'sent' ? exampleSentence(c) : c.kind === 'L' ? c.kw : c.text); break; }
     case 'yes': reviewAnswer(true); break;
     case 'no': reviewAnswer(false); break;
     case 'next': nextCard(); break;
     case 'mk': S.m[el.dataset.k] = !S.m[el.dataset.k]; drawStage(); break;
-    case 'master': setCard(S.ids[S.i], { b: 'm', s: true, u: true, d: t }); persist(); S.lastOk = true; nextCard(); break;
-    case 'stay': setCard(S.ids[S.i], { b: '5', d: t, s: S.m.s, u: S.m.u }); persist(); S.lastOk = true; nextCard(); break;
+    case 'master': { const mid = curId(); setCard(mid, { b: 'm', s: true, u: true, d: t }); persist(); S.lastOk = true; S.paper ? paperDone(mid, 'm') : nextCard(); break; }
+    case 'stay': { const mid = curId(); setCard(mid, { b: '5', d: t, s: S.m.s, u: S.m.u }); persist(); S.lastOk = true; S.paper ? paperDone(mid, '5') : nextCard(); break; }
     case 's-q': case 's-2': case 's-4': {
-      const sid = S.ids[S.i];
-      if (a !== 's-q') { setCard(sid, { b: a === 's-2' ? '2' : '4', d: t }); persist(); }
+      const sid = curId(); if (!sid) break;
+      const nb = a === 's-q' ? 'q' : a === 's-2' ? '2' : '4';
+      if (nb !== 'q') { setCard(sid, { b: nb, d: t }); persist(); }
+      if (S.paper) { paperDone(sid, nb); break; }
       S.i++; if (S.i >= S.ids.length) finish(); else drawStage(); break;
     }
     case 'pickw': pickNew(id); break;
